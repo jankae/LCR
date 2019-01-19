@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Project>
+<ProjectName>/home/jan/Projekte/LCR/software/LCR/\LCR</ProjectName>
+<CMSIS>../Drivers/CMSIS</CMSIS>
+<HAL_Driver>/home/jan/STM32Cube/Repository//STM32Cube_FW_F3_V1.9.1/Drivers/CMSIS</HAL_Driver>
+
+<Toolchain>SW4STM32</Toolchain>
+<Version>0</Version>
+
+<filestoremove>
+	<file>
+	</file>
+</filestoremove>
+
+<inctoremove>
+	<Aincludes>
+	   <include></include>
+    </Aincludes>
+	<Cincludes>
+    </Cincludes>
+</inctoremove>
+
+<configs>
+  <config>
+    <name>LCR</name>				
+    <device>STM32F303VCTx</device>		 
+    <heapSize>0x200</heapSize>
+    <stackSize>0x400</stackSize>
+    
+    	<board>STM32F3DISCOVERY</board>
+			
+    <usedDebug>true</usedDebug>
+    	<debugprobe></debugprobe>
+    <optimization>6</optimization>
+    <icfloc>0</icfloc>
+    <Adefines>
+        <define></define>
+    </Adefines>   
+
+    <UsedFreeRTOS>true</UsedFreeRTOS>
+    <Aincludes>
+		   		<include></include>
+    </Aincludes>
+    <Cdefines>
+        <define>__weak=&quot;__attribute__((weak))&quot;</define>
+        <define>__packed=&quot;__attribute__((__packed__))&quot;</define>
+    </Cdefines>
+    <definestoremove>
+        <Adefines>
+            <define></define>
+        </Adefines>
+        <Cdefines>
+            <define>USE_FULL_LL_DRIVER</define>
+            <define>MBEDTLS_CONFIG_FILE=&quot;mbedtls_config.h&quot;</define>
+            <define>_TIMEVAL_DEFINED</define>
+            <define>_SYS_TIME_H_</define>
+        </Cdefines>         
+    </definestoremove>
+    
+	<Cincludes>
+	   <include>../Inc</include>
+	   <include>../Drivers/STM32F3xx_HAL_Driver/Inc</include>
+	   <include>../Drivers/STM32F3xx_HAL_Driver/Inc/Legacy</include>
+	   <include>../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F</include>
+	   <include>../Drivers/CMSIS/Device/ST/STM32F3xx/Include</include>
+	   <include>../Middlewares/Third_Party/FreeRTOS/Source/include</include>
+	   <include>../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS</include>
+	   <include>../Drivers/CMSIS/Include</include>
+
+    </Cincludes>
+      </config>
+    </configs> 
+
+    <underRoot>true</underRoot>
+    	<copyAsReference>false</copyAsReference>
+	  		<sourceEntries>
+		    	<sourceEntry>
+		    		<name>Inc</name>
+		    	</sourceEntry>
+		    	<sourceEntry>
+		    		<name>Src</name>
+		    	</sourceEntry>
+		    	<sourceEntry>
+		    		<name>Drivers</name>
+		    	</sourceEntry>
+		    		<sourceEntry>
+		    			<name>Middlewares</name>
+		    		</sourceEntry>
+		    </sourceEntries>
+
+</Project>
