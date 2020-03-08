@@ -13,7 +13,8 @@
 namespace LCR {
 
 bool Init();
-bool Measure(uint32_t frequency, double *real, double *imag);
+bool Measure(uint32_t frequency, double *real, double *imag, double *phase);
+bool CalibratePhase();
 
 }
 

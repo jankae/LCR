@@ -8,6 +8,7 @@
 #include "log.h"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 static pga280_t pga;
 extern SPI_HandleTypeDef hspi2;
@@ -33,7 +34,14 @@ constexpr PGAGain GainSettings[] = {
 
 static uint8_t VoltageGainSetting = 3;
 static uint8_t CurrentGainSetting = 3;
-constexpr uint8_t MaxGainSetting = sizeof(GainSettings)/sizeof(GainSettings[0]);
+constexpr uint8_t MaxGainSetting = sizeof(GainSettings)/sizeof(GainSettings[0]) - 1;
+
+static void Print(int16_t *data, uint16_t n) {
+	for (uint16_t i = 0; i < n; i++) {
+		LOG(Log_Wave, LevelInfo, "%d", data[i]);
+		log_flush();
+	}
+}
 
 bool LCR::Init() {
 	pga.CSgpio = GPIOB;
@@ -42,10 +50,25 @@ bool LCR::Init() {
 	return pga280_init(&pga) == PGA280_RES_OK;
 }
 
-static bool FindOptimalGain(uint8_t *gain) {
+static bool FindOptimalGain(uint8_t *gain, uint32_t freq) {
+	// calculate maximum gain
+	constexpr uint32_t PGAGBW = 6000000;
+	const float MaxGain = PGAGBW / freq;
+	uint8_t IndexMaxGain = MaxGainSetting;
+	while (GainSettings[IndexMaxGain].gain > MaxGain) {
+		IndexMaxGain--;
+	}
+	LOG(Log_LCR, LevelDebug,
+			"Maximum theoretical PGA gain for this frequency is %f",
+			MaxGain);
+	LOG(Log_LCR, LevelDebug, "Actual PGA gain limited to %f",
+			GainSettings[IndexMaxGain].gain);
+	if(*gain > IndexMaxGain) {
+		*gain = IndexMaxGain;
+	}
 	LOG(Log_LCR, LevelDebug, "Finding optimal gain");
 	auto data = Waveform::Get();
-	const uint32_t samplingDelay = data.nvalues * 1000 / data.samplerate + 1;
+	const uint32_t samplingDelay = data.nvalues * 1000 / data.samplerate + 30;
 	bool adjusted = false;
 	do {
 		pga280_set_gain(&pga, GainSettings[*gain].setting, false);
@@ -61,8 +84,8 @@ static bool FindOptimalGain(uint8_t *gain) {
 			}
 		}
 		constexpr uint16_t SafetyMargin = 100;
-		constexpr uint16_t ADCTop = 4095 - SafetyMargin;
-		constexpr uint16_t ADCBot = 0 + SafetyMargin;
+		constexpr uint16_t ADCTop = 2047 - SafetyMargin;
+		constexpr uint16_t ADCBot = -2048 + SafetyMargin;
 		int16_t headroom = ADCTop - max;
 		int16_t footroom = min - ADCBot;
 		LOG(Log_LCR, LevelDebug, "Headroom %d, footroom %d", headroom,
@@ -78,7 +101,7 @@ static bool FindOptimalGain(uint8_t *gain) {
 			}
 		} else if (headroom > Waveform::ADCMax / 4
 				&& footroom > Waveform::ADCMax / 4) {
-			if (*gain < MaxGainSetting - 1) {
+			if (*gain < IndexMaxGain) {
 				LOG(Log_LCR, LevelDebug, "Increasing gain");
 				(*gain)++;
 			} else {
@@ -92,47 +115,72 @@ static bool FindOptimalGain(uint8_t *gain) {
 			LOG(Log_LCR, LevelDebug, "Optimal gain found");
 		}
 	} while(!adjusted);
+	LOG(Log_LCR, LevelDebug, "Optimal gain: %f", GainSettings[*gain].gain);
 	return true;
 }
 
-bool LCR::Measure(uint32_t frequency, double *real, double *imag) {
+static int16_t* SampleAndAverage(uint16_t waveforms, uint32_t maxTime) {
+	if(waveforms > 16) {
+		waveforms = 16;
+	}
+	auto data = Waveform::Get();
+	int16_t *average = new int16_t[data.nvalues];
+	if(!average) {
+		LOG(Log_LCR, LevelError, "Couldn't allocate memory for samples");
+		return nullptr;
+	}
+	memset(average, 0, data.nvalues * sizeof(*average));
+	const uint32_t samplingDelay = data.nvalues * 1000 / data.samplerate + 2;
+	if (waveforms * samplingDelay > maxTime) {
+		waveforms = maxTime / samplingDelay;
+	}
+	std::copy(data.values, data.values + data.nvalues, average);
+	for (uint16_t i = 0; i < waveforms; i++) {
+		vTaskDelay(samplingDelay);
+		for(uint16_t j=0;j<data.nvalues;j++) {
+			average[j] += data.values[j];
+		}
+	}
+	for(uint16_t j=0;j<data.nvalues;j++) {
+		average[j] /= waveforms;
+	}
+	return average;
+}
+
+bool LCR::Measure(uint32_t frequency, double *real, double *imag, double *phase) {
 //	Waveform::Setup(frequency, 2048);
 //	Waveform::Enable();
 	LOG(Log_LCR, LevelInfo, "Taking voltage measurement");
 	pga280_select_input(&pga, PGA280_INPUT2_DIFF);
-	if (FindOptimalGain(&VoltageGainSetting)) {
-		LOG(Log_LCR, LevelDebug, "Optimal gain for voltage measurement: %f",
-				GainSettings[VoltageGainSetting].gain);
-	} else {
+	if (!FindOptimalGain(&VoltageGainSetting, frequency)) {
 		LOG(Log_LCR, LevelWarn, "Measurement failed, voltage input saturated");
 		return false;
 	}
 	// save voltage data
 	auto data = Waveform::Get();
 	LOG(Log_LCR, LevelInfo, "Saving voltage measurement");
-	int16_t *voltage = new int16_t[data.nvalues];
+	int16_t *voltage = SampleAndAverage(16, 500);
 	if(!voltage) {
 		LOG(Log_LCR, LevelError, "Couldn't allocate memory for voltage samples");
 		return false;
 	}
-	std::copy(data.values, data.values + data.nvalues, voltage);
+	Print(voltage, data.nvalues);
 	LOG(Log_LCR, LevelInfo, "Taking Current measurement");
 	pga280_select_input(&pga, PGA280_INPUT1_DIFF);
-	if (FindOptimalGain(&CurrentGainSetting)) {
-		LOG(Log_LCR, LevelDebug, "Optimal gain for current measurement: %f",
-				GainSettings[CurrentGainSetting].gain);
-	} else {
+	HAL_GPIO_WritePin(TRIGGER_GPIO_Port, TRIGGER_Pin, GPIO_PIN_SET);
+	if (!FindOptimalGain(&CurrentGainSetting, frequency)) {
 		LOG(Log_LCR, LevelWarn, "Measurement failed, current input saturated");
 		return false;
 	}
+	HAL_GPIO_WritePin(TRIGGER_GPIO_Port, TRIGGER_Pin, GPIO_PIN_RESET);
 	// save current data
 	LOG(Log_LCR, LevelInfo, "Saving current measurement");
-	int16_t *current = new int16_t[data.nvalues];
+	int16_t *current = SampleAndAverage(16, 500);
 	if(!current) {
 		LOG(Log_LCR, LevelError, "Couldn't allocate memory for current samples");
 		return false;
 	}
-	std::copy(data.values, data.values + data.nvalues, current);
+	Print(current, data.nvalues);
 
 //	Waveform::Disable();
 
@@ -149,17 +197,32 @@ bool LCR::Measure(uint32_t frequency, double *real, double *imag) {
 	// account for current shunt
 	currentRMS /= 909;
 	LOG(Log_LCR, LevelDebug, "RMS current = %f", currentRMS);
-	double phase = Algorithm::PhaseDiff(voltage, current, data.nvalues);
-	LOG(Log_LCR, LevelDebug, "Phase = %f°", phase * 180 / 3.141592f);
+	*phase = Algorithm::PhaseDiff(voltage, current, data.nvalues);
+	LOG(Log_LCR, LevelDebug, "Phase = %f", *phase * 180 / 3.141592f);
 
-	double realCurrentRMS = currentRMS * cos(phase);
-	double imagCurrentRMS = currentRMS * sin(phase);
+	double impedance = voltageRMS / currentRMS;
 
-	*real = voltageRMS / realCurrentRMS;
-	*imag = voltageRMS / imagCurrentRMS;
+	*real = impedance * cos(*phase);
+	*imag = impedance * sin(*phase);
 	LOG(Log_LCR, LevelDebug, "Impedance: %fOhm/%fjOhm", *real, *imag);
 
 	delete voltage;
 	delete current;
 	return true;
+}
+
+bool LCR::CalibratePhase() {
+	uint32_t freq = 1000;
+	for (uint16_t i = 2048; i > 4; i >>= 1) {
+		Waveform::Setup(freq, i);
+		Waveform::Enable();
+		pga280_select_input(&pga, PGA280_INPUT1_DIFF);
+		vTaskDelay(3000);
+		FindOptimalGain(&CurrentGainSetting, freq);
+		Waveform::Disable();
+		auto data = Waveform::Get();
+		Algorithm::RemoveDC(data.values, data.nvalues);
+		double phase = Algorithm::Phase(data.values, data.nvalues);
+		LOG(Log_LCR, LevelInfo, "Phase offset: %f", phase);
+	}
 }

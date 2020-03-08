@@ -38,25 +38,31 @@ double Algorithm::RMS(int16_t* data, uint16_t n) {
 	for (uint16_t i = 0; i < n; i++) {
 		sum += data[i] * data[i];
 	}
-	sum /= n;
-	return sqrt(sum);
+	return sqrt(sum)/sqrt(n);
+}
+
+int16_t Algorithm::PeakToPeak(int16_t* data, uint16_t n) {
+	int16_t min = INT16_MAX;
+	int16_t max = INT16_MIN;
+	for (uint16_t i = 0; i < n; i++) {
+		if (data[i] < min) {
+			min = data[i];
+		} else if (data[i] > max) {
+			max = data[i];
+		}
+	}
+	return max - min;
 }
 
 double Algorithm::PhaseDiff(int16_t *data1, int16_t *data2, uint16_t n) {
-	double real1 = 0, imag1 = 0, real2 = 0, imag2 = 0;
-	double radPerSample = 2.0 * M_PI / n;
+	int32_t real = 0, imag = 0;
 	for(uint16_t i=0;i<n;i++) {
-		double sine = sin(i * radPerSample);
-		double cosine = cos(i * radPerSample);
-		real1 += sine * data1[i];
-		imag1 += cosine * data1[i];
-		real2 += sine * data2[i];
-		imag2 += cosine * data2[i];
+		real += data1[i] * data2[i];
+		uint16_t i90 = (i + n/4) % n;
+		imag += data1[i] * data2[i90];
 	}
-	double phase1 = atan2(imag1, real1);
-	double phase2 = atan2(imag2, real2);
+	double diff = atan2(imag, real);
 
-	double diff = phase1 - phase2;
 	if (diff < -M_PI) {
 		diff += 2 * M_PI;
 	} else if (diff > M_PI) {
@@ -64,4 +70,16 @@ double Algorithm::PhaseDiff(int16_t *data1, int16_t *data2, uint16_t n) {
 	}
 
 	return diff;
+}
+
+double Algorithm::Phase(int16_t* data, uint16_t n) {
+	double real = 0, imag = 0;
+	double radPerSample = 2.0 * M_PI / n;
+	for(uint16_t i=0;i<n;i++) {
+		double sine = sin(i * radPerSample);
+		double cosine = cos(i * radPerSample);
+		real += sine * data[i];
+		imag += cosine * data[i];
+	}
+	return atan2(imag, real);
 }

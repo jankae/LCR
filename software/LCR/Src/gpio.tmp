@@ -21,6 +21,8 @@ static void MX_GPIO_Init(void)
 #t__HAL_RCC_GPIOD_CLK_ENABLE();
 #n#t/*Configure GPIO pin Output Level */
 #tHAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin|LD4_Pin|LD3_Pin|LD5_Pin #n#t#t#t#t#t#t#t#t#t#t#t#t#t|LD7_Pin|LD9_Pin|LD10_Pin|LD8_Pin #n#t#t#t#t#t#t#t#t#t#t#t#t#t|LD6_Pin, GPIO_PIN_RESET);
+#n#t/*Configure GPIO pin Output Level */
+#tHAL_GPIO_WritePin(TRIGGER_GPIO_Port, TRIGGER_Pin, GPIO_PIN_RESET);
 #n#t/*Configure GPIO pins : DRDY_Pin MEMS_INT3_Pin MEMS_INT4_Pin MEMS_INT1_Pin #n#t#t#t#t#t#t#t#t#t#t#t#t#t MEMS_INT2_Pin */
 #tGPIO_InitStruct.Pin = DRDY_Pin|MEMS_INT3_Pin|MEMS_INT4_Pin|MEMS_INT1_Pin #n#t#t#t#t#t#t#t#t#t#t#t#t#t|MEMS_INT2_Pin;
 #tGPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
@@ -42,11 +44,17 @@ static void MX_GPIO_Init(void)
 #tGPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
 #tGPIO_InitStruct.Pull = GPIO_NOPULL;
 #tHAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-#n#t/*Configure GPIO pins : PF9 PF10 PF2 PF4 #n#t#t#t#t#t#t#t#t#t#t#t#t#t PF6 */
-#tGPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_2|GPIO_PIN_4 #n#t#t#t#t#t#t#t#t#t#t#t#t#t|GPIO_PIN_6;
+#n#t/*Configure GPIO pins : PF9 PF2 PF4 PF6 */
+#tGPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_2|GPIO_PIN_4|GPIO_PIN_6;
 #tGPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
 #tGPIO_InitStruct.Pull = GPIO_NOPULL;
 #tHAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+#n#t/*Configure GPIO pin : TRIGGER_Pin */
+#tGPIO_InitStruct.Pin = TRIGGER_Pin;
+#tGPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+#tGPIO_InitStruct.Pull = GPIO_NOPULL;
+#tGPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+#tHAL_GPIO_Init(TRIGGER_GPIO_Port, &GPIO_InitStruct);
 #n#t/*Configure GPIO pin : B1_Pin */
 #tGPIO_InitStruct.Pin = B1_Pin;
 #tGPIO_InitStruct.Mode = GPIO_MODE_INPUT;

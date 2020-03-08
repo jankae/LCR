@@ -21,8 +21,11 @@ Complex Goertzel(int16_t *data, uint16_t N, uint32_t sampleFreq,
 		uint32_t targetFreq);
 
 void RemoveDC(int16_t *data, uint16_t n);
+//void LowPass(int16_t *data, uint16_t n, )
 double RMS(int16_t *data, uint16_t n);
+int16_t PeakToPeak(int16_t *data, uint16_t n);
 double PhaseDiff(int16_t *data1, int16_t *data2, uint16_t n);
+double Phase(int16_t *data, uint16_t n);
 
 }
 
