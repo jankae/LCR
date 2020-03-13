@@ -1,3 +1,0 @@
-osThreadId defaultTaskHandle;
-uint32_t defaultTaskBuffer[ 1024 ];
-osStaticThreadDef_t defaultTaskControlBlock;
