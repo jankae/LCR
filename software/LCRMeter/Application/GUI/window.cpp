@@ -1,5 +1,6 @@
 #include "window.hpp"
 #include "log.h"
+#include "gui.hpp"
 
 extern Widget *topWidget;
 extern bool isPopup;

@@ -81,7 +81,7 @@ static void guiThread(void) {
 	}
 }
 
-bool GUI::Init(Desktop& d) {
+bool GUI::Init(Widget& top) {
 	/* initialize event queue */
 	GUIeventQueue = xQueueCreate(10, sizeof(GUIEvent_t));
 
@@ -94,7 +94,7 @@ bool GUI::Init(Desktop& d) {
 		return false;
 	}
 
-	topWidget = &d;
+	topWidget = &top;
 	return true;
 }
 

@@ -6,7 +6,7 @@
  */
 
 
-#include "util.h"
+#include <util.h>
 
 
 uint32_t unixtime(int year, int month, int day,
@@ -38,4 +38,19 @@ int32_t util_Map(int32_t value, int32_t scaleFromLow, int32_t scaleFromHigh,
 	result = ((int64_t) value * rangeTo) / rangeFrom;
 	result += scaleToLow;
 	return result;
+}
+
+#define CRC32_POLYGON 0xEDB88320
+
+uint32_t util_crc32(uint32_t crc, const void *data, uint32_t len) {
+	uint8_t *u8buf = (uint8_t*) data;
+	int k;
+
+	crc = ~crc;
+	while (len--) {
+		crc ^= *u8buf++;
+		for (k = 0; k < 8; k++)
+			crc = crc & 1 ? (crc >> 1) ^ CRC32_POLYGON : crc >> 1;
+	}
+	return ~crc;
 }

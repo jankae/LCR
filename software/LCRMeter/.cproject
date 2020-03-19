@@ -549,7 +549,7 @@
         		
         <configuration configurationName="Debug">
             			
-            <resource resourceType="PROJECT" workspacePath="LCRMeter"/>
+            <resource resourceType="PROJECT" workspacePath="/LCRMeter"/>
             		
         </configuration>
         		

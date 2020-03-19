@@ -1,9 +1,9 @@
+#include <util.h>
 #include "input.hpp"
 
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
-#include "util.h"
 #include "touch.hpp"
 #include "log.h"
 #include "fatfs.h"

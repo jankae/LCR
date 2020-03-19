@@ -7,6 +7,8 @@ extern "C" {
 
 #include <stdint.h>
 
+#define ARRAY_SIZE(a)		(sizeof(a)/(sizeof(a[0])))
+
 static inline int32_t util_sign_extend_32(int32_t x, uint16_t bits) {
 	int32_t m = 1 << (bits - 1);
 	return (x ^ m) - m;
@@ -54,6 +56,8 @@ static inline int16_t constrain_int16_t(int16_t val, int16_t min, int16_t max) {
 
 int32_t util_Map(int32_t value, int32_t scaleFromLow, int32_t scaleFromHigh,
         int32_t scaleToLow, int32_t scaleToHigh);
+
+uint32_t util_crc32(uint32_t crc, const void *data, uint32_t len);
 
 typedef struct coords {
 	int16_t x;

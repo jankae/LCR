@@ -50,6 +50,9 @@ static const Unit::unit uN = {"uN", 1};
 static const Unit::unit mN =  {"mN", 1000};
 static const Unit::unit N = {"N", 1000000};
 
+static const Unit::unit Hz = {"Hz", 1};
+static const Unit::unit kHz =  {"kHz", 1000};
+
 static const Unit::unit mm = {"mm", 1};
 static const Unit::unit cm = {"cm", 10};
 static const Unit::unit m =  {"m", 1000};
@@ -71,10 +74,18 @@ const Unit::unit *Unit::Weight[] = { &mg, &g, &kg, nullptr };
 const Unit::unit *Unit::Force[] = { &uN, &mN, &N, nullptr };
 const Unit::unit *Unit::None[] = {&none, nullptr };
 const Unit::unit *Unit::Hex[] = {nullptr };
+const Unit::unit *Unit::Frequency[] = { &Hz, &kHz, nullptr };
 const Unit::unit *Unit::Distance[] = {&mm, &m, nullptr };
 
 const int32_t Unit::null = 0;
 const int32_t Unit::maxPercent = 100000000;
+
+const coords_t operator+(coords_t const& lhs, coords_t const& rhs) {
+	coords_t ret = lhs;
+	ret.x += rhs.x;
+	ret.y += rhs.y;
+	return ret;
+}
 
 uint32_t Unit::LeastDigitValueFromString(const char *s,
 		const Unit::unit *unit[]) {

@@ -1,8 +1,8 @@
 #ifndef INPUT_H_
 #define INPUT_H_
 
+#include <util.h>
 #include <cstdint>
-#include "util.h"
 #include "events.hpp"
 
 namespace Input {

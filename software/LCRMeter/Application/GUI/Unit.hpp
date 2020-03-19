@@ -5,6 +5,12 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include "util.h"
+
+#define COORDS(v1, v2)	((coords_t){(int16_t) (v1), (int16_t) (v2)})
+#define SIZE(v1, v2)	COORDS(v1, v2)
+
+const coords_t operator+(coords_t const& lhs, coords_t const& rhs);
 
 namespace Unit {
 
@@ -18,11 +24,8 @@ using unit = struct unit {
 
 extern const unit *Current[], *Voltage[], *Power[], *Temperature[],
 		*Resistance[], *Energy[], *Time[], *Memory[], *Capacity[], *Percent[],
-		*Charge[], *Weight[], *Force[], *None[], *Hex[], *Distance[];
+		*Charge[], *Weight[], *Force[], *None[], *Hex[], *Frequency[], *Distance[];
 extern const int32_t null, maxPercent;
-
-#define COORDS(v1, v2)	((coords_t){(int16_t) (v1), (int16_t) (v2)})
-#define SIZE(v1, v2)	COORDS(v1, v2)
 
 uint32_t LeastDigitValueFromString(const char *s,
 		const unit *unit[]);

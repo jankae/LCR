@@ -141,7 +141,7 @@ void Entry::input(GUIEvent_t *ev) {
 	}
     switch(ev->type) {
     case EVENT_TOUCH_RELEASED:
-		new ValueInput("New value?", value, unit,
+		new ValueInput<int32_t>("New value?", value, unit,
 				pmf_cast<void (*)(void*, bool), Entry,
 						&Entry::ValueInputCallback>::cfn, this);
 		ev->type = EVENT_NONE;

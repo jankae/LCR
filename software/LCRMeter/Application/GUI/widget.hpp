@@ -3,14 +3,14 @@
 
 #include <string.h>
 #include <stdint.h>
-
-#include "util.h"
+#include <util.h>
 #include "events.hpp"
 
 class Widget {
 	/* Classes which can have children need extended access to their childrens members */
 	friend class Container;
 	friend class Window;
+	friend class Menu;
 public:
 	enum class Type : uint8_t {
 		Button,
@@ -28,6 +28,13 @@ public:
 		Widget,
 		Window,
 		Scopescreen,
+		Menu,
+		MenuBool,
+		MenuBack,
+		MenuChooser,
+		EventCatcher,
+		MenuValue,
+		MenuAction,
 		Desktop,
 		Radiobutton,
 		Slider,
@@ -45,8 +52,8 @@ public:
 		return selectedWidget;
 	}
 
-//	static void deselect();
-//	void select(bool down = true);
+	static void deselect();
+	void select(bool down = true);
 
 	void requestRedrawChildren();
 	void requestRedraw();
@@ -79,10 +86,15 @@ public:
 		position = pos;
 	}
 
+	void setParent(Widget *p) {
+		this->parent = p;
+	}
+
 	void addChild(Widget *w, coords_t pos);
 
 protected:
-//	Widget* IntSelectChild();
+	Widget* IntSelectChild();
+	Widget* GetNth(uint16_t n);
 
 	virtual void draw(coords_t offset) { return; }
 	virtual void input(GUIEvent_t *ev) { return; }
@@ -98,7 +110,7 @@ protected:
 	coords_t position;
 	coords_t size;
 	bool visible :1;
-//	bool selected :1;
+	bool selected :1;
 	bool selectable :1;
 //	bool focus :1;
 	/* this widget needs to be redrawn */

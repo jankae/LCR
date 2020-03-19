@@ -9,6 +9,8 @@
 #include "gui.hpp"
 #include "touch.hpp"
 #include "Config.hpp"
+#include "Persistence.hpp"
+#include "LCR.hpp"
 
 extern ADC_HandleTypeDef hadc1;
 // global mutex controlling access to SPI1 (used for touch + SD card)
@@ -46,6 +48,7 @@ constexpr Test Selftests[] = {
 		{"3V3 rail", VCCRail},
 		{"Frontend init", Frontend_init},
 		{"Load touch cal.", Input::LoadCalibration},
+		{"Application init", LCR::Init},
 };
 constexpr uint8_t nTests = sizeof(Selftests) / sizeof(Selftests[0]);
 
@@ -53,6 +56,7 @@ constexpr uint8_t nTests = sizeof(Selftests) / sizeof(Selftests[0]);
 void Start() {
 	log_init();
 	LOG(Log_App, LevelInfo, "Start");
+	Persistence::Init();
 
 	xMutexSPI1 = xSemaphoreCreateMutexStatic(&xSemSPI1);
 
@@ -98,7 +102,7 @@ void Start() {
 //	Loadcells::Setup(0x3F, MAX11254_RATE_CONT1_9_SINGLE50);
 	Input::Init();
 //	Input::Calibrate();
-	Desktop d;
+//	Desktop d;
 //	App::Info app;
 //	app.task = LoadcellSetup::Task;
 //	app.StackSize = 512;
@@ -123,11 +127,13 @@ void Start() {
 //	app3.icon = &Setup::Icon;
 //	new App(app3, d);
 
-	GUI::Init(d);
+//	GUI::Init(d);
 
 
-	Config::Load("default.cfg");
+	Persistence::Load();
+//	Config::Load("default.cfg");
 
+	LCR::Run(); // does not return
 	while(1) {
 		vTaskDelay(1000);
 	}

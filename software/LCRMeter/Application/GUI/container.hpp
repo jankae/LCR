@@ -1,9 +1,9 @@
 #ifndef GUI_CONTAINER_H_
 #define GUI_CONTAINER_H_
 
+#include <util.h>
 #include "widget.hpp"
 #include "display.h"
-#include "util.h"
 
 class Container : public Widget {
 public:

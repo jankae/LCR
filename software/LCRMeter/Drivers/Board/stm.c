@@ -1,6 +1,6 @@
+#include <util.h>
 #include "stm.h"
 
-#include "util.h"
 #include "time.h"
 
 #include "log.h"

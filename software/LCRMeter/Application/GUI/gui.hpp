@@ -19,12 +19,19 @@
 #include "custom.hpp"
 #include "Radiobutton.hpp"
 #include "slider.hpp"
+#include "menu.hpp"
+#include "MenuBack.hpp"
+#include "MenuBool.hpp"
+#include "MenuChooser.hpp"
+#include "MenuValue.hpp"
+#include "MenuAction.hpp"
+#include "EventCatcher.hpp"
 
 #include "desktop.hpp"
 
 namespace GUI {
 
-bool Init(Desktop &d);
+bool Init(Widget& top);
 
 bool SendEvent(GUIEvent_t *ev);
 

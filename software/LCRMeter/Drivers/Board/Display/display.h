@@ -1,6 +1,7 @@
 #ifndef DISPLAY_H_
 #define DISPLAY_H_
 
+#include <util.h>
 #include "stm.h"
 #include "font.h"
 #include "color.h"
@@ -36,6 +37,8 @@ void display_Circle(int16_t x0, int16_t y0, uint16_t radius);
 void display_CircleFull(int16_t x0, int16_t y0, uint16_t radius);
 void display_Char(int16_t x, int16_t y, uint8_t c);
 void display_String(int16_t x, int16_t y, const char *s);
+void display_AutoCenterString(const char *s, coords_t upperLeft,
+		coords_t lowerRight);
 void display_Image(int16_t x, int16_t y, const Image_t *im);
 void display_ImageGrayscale(int16_t x, int16_t y, const Image_t *im);
 void display_SetActiveArea(uint16_t minx, uint16_t maxx, uint16_t miny, uint16_t maxy);
