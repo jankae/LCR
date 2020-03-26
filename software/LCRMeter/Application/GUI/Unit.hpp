@@ -32,6 +32,7 @@ uint32_t LeastDigitValueFromString(const char *s,
 
 void StringFromValue(char *to, uint8_t len, int32_t val,
 		const unit *unit[]);
+bool SIStringFromFloat(char* to, uint8_t len, float val);
 
 uint8_t ValueFromString(int32_t *value, char *s, const unit *unit[]);
 int32_t ValueFromString(const char *s, uint32_t multiplier);

@@ -95,14 +95,14 @@ bool Persistence::Load() {
 	// compare with last FLASH word (should match CRC)
 	uint32_t compare = *(uint32_t*) (FLASHend - 4);
 
-	for (uint8_t i = 0; i < maxEntries; i++) {
-		if (entries[i].ptr) {
-			memcpy(entries[i].ptr, start + entries[i].offset, entries[i].size);
-		}
-	}
 	if (crc != compare) {
 		return false;
 	} else {
+		for (uint8_t i = 0; i < maxEntries; i++) {
+			if (entries[i].ptr) {
+				memcpy(entries[i].ptr, start + entries[i].offset, entries[i].size);
+			}
+		}
 		return true;
 	}
 }

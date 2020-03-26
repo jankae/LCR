@@ -18,7 +18,7 @@ static constexpr uint32_t referenceVoltage = 1100000;
 static Frontend::Callback callback;
 static void *cb_ctx;
 
-static constexpr uint32_t stack_size_words = 512;
+static constexpr uint32_t stack_size_words = 1024;
 static uint32_t task_stack[stack_size_words];
 static TaskHandle_t taskHandle;
 static StaticTask_t task;
@@ -283,6 +283,7 @@ static void frontend_task(void*) {
 						result.Phase = phase;
 						result.I = mag * cos(phase);
 						result.Q = mag * sin(phase);
+						result.frequency = settings.frequency;
 						// TODO fill with proper values
 						result.range = Frontend::Range::AUTO;
 						result.valid = true;
@@ -326,10 +327,13 @@ static void frontend_task(void*) {
 }
 
 bool Frontend::Init() {
+	// Release reset
+	AD5941_RESET_GPIO_Port->BSRR = AD5941_RESET_Pin;
 	Persistence::Add(calibration_points, sizeof(calibration_points));
 	ad.CSport = AD5941_CS_GPIO_Port;
 	ad.CSpin = AD5941_CS_Pin;
 	ad.spi = &hspi3;
+	vTaskDelay(5);
 	if(ad5940_init(&ad) != AD5940_RES_OK) {
 		LOG(Log_Frontend, LevelError, "AD5941 initalization failed");
 		return false;
@@ -376,12 +380,12 @@ bool Frontend::Init() {
 	dft.source = AD5940_DFTSRC_RAW;
 	ad5940_set_dft(&ad, &dft);
 
-	// Start task
-	taskHandle = xTaskCreateStatic(frontend_task, "Frontend", stack_size_words,
-			nullptr, 3, task_stack, &task);
-
 	queueHandle = xQueueGenericCreateStatic(msgQueueLen, sizeof(Message),
 			queueBuf, &msgQueue, 0);
+
+	// Start task
+	taskHandle = xTaskCreateStatic(frontend_task, "Frontend", stack_size_words,
+			nullptr, 4, task_stack, &task);
 
 	return true;
 }

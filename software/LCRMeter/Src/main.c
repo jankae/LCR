@@ -55,6 +55,8 @@ TIM_HandleTypeDef htim8;
 UART_HandleTypeDef huart1;
 
 osThreadId defaultTaskHandle;
+uint32_t defaultTaskBuffer[ 2048 ];
+osStaticThreadDef_t defaultTaskControlBlock;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -113,7 +115,8 @@ int main(void)
   MX_TIM8_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_Delay(100);
+  display_Init();
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -134,7 +137,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 2048, defaultTaskBuffer, &defaultTaskControlBlock);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -255,7 +258,7 @@ static void MX_ADC1_Init(void)
   sConfig.Channel = ADC_CHANNEL_VREFINT;
   sConfig.Rank = ADC_REGULAR_RANK_1;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
-  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_181CYCLES_5;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
@@ -287,7 +290,7 @@ static void MX_SPI1_Init(void)
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
@@ -327,11 +330,11 @@ static void MX_SPI3_Init(void)
   hspi3.Instance = SPI3;
   hspi3.Init.Mode = SPI_MODE_MASTER;
   hspi3.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi3.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi3.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi3.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi3.Init.NSS = SPI_NSS_SOFT;
-  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
   hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -483,32 +486,37 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOE, DISP_IO2_Pin|DISP_IO3_Pin|DISP_IO4_Pin|DISP_IO5_Pin 
                           |DISP_IO6_Pin|DISP_IO7_Pin|DISP_IO8_Pin|DISP_IO9_Pin 
                           |DISP_IO10_Pin|DISP_IO11_Pin|DISP_IO12_Pin|DISP_IO13_Pin 
-                          |DISP_IO14_Pin|DISP_IO15_Pin|DISP_IO0_Pin, GPIO_PIN_RESET);
+                          |DISP_IO14_Pin|DISP_IO15_Pin|DISP_IO0_Pin|DISP_IO1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, DISP_RS_Pin|DISP_WR_Pin|DISP_RD_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(TOUCH_CS_GPIO_Port, TOUCH_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(TOUCH_CS_GPIO_Port, TOUCH_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, TOUCH_IRQ_Pin|DISP_CS_Pin|DISP_RST_Pin|SD_CS_Pin 
-                          |USB_IDENT_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, DISP_CS_Pin|SD_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, AD5941_CS_Pin|AD5941_RESET_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, DISP_RST_Pin|USB_IDENT_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(AD5941_CS_GPIO_Port, AD5941_CS_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(AD5941_RESET_GPIO_Port, AD5941_RESET_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : DISP_IO2_Pin DISP_IO3_Pin DISP_IO4_Pin DISP_IO5_Pin 
                            DISP_IO6_Pin DISP_IO7_Pin DISP_IO8_Pin DISP_IO9_Pin 
                            DISP_IO10_Pin DISP_IO11_Pin DISP_IO12_Pin DISP_IO13_Pin 
-                           DISP_IO14_Pin DISP_IO15_Pin DISP_IO0_Pin */
+                           DISP_IO14_Pin DISP_IO15_Pin DISP_IO0_Pin DISP_IO1_Pin */
   GPIO_InitStruct.Pin = DISP_IO2_Pin|DISP_IO3_Pin|DISP_IO4_Pin|DISP_IO5_Pin 
                           |DISP_IO6_Pin|DISP_IO7_Pin|DISP_IO8_Pin|DISP_IO9_Pin 
                           |DISP_IO10_Pin|DISP_IO11_Pin|DISP_IO12_Pin|DISP_IO13_Pin 
-                          |DISP_IO14_Pin|DISP_IO15_Pin|DISP_IO0_Pin;
+                          |DISP_IO14_Pin|DISP_IO15_Pin|DISP_IO0_Pin|DISP_IO1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : DISP_RS_Pin DISP_WR_Pin DISP_RD_Pin */
@@ -522,30 +530,42 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = TOUCH_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(TOUCH_CS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : TOUCH_IRQ_Pin DISP_CS_Pin DISP_RST_Pin SD_CS_Pin 
-                           USB_IDENT_Pin */
-  GPIO_InitStruct.Pin = TOUCH_IRQ_Pin|DISP_CS_Pin|DISP_RST_Pin|SD_CS_Pin 
-                          |USB_IDENT_Pin;
+  /*Configure GPIO pin : TOUCH_IRQ_Pin */
+  GPIO_InitStruct.Pin = TOUCH_IRQ_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(TOUCH_IRQ_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : DISP_CS_Pin DISP_RST_Pin SD_CS_Pin */
+  GPIO_InitStruct.Pin = DISP_CS_Pin|DISP_RST_Pin|SD_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : AD5941_CS_Pin AD5941_RESET_Pin */
-  GPIO_InitStruct.Pin = AD5941_CS_Pin|AD5941_RESET_Pin;
+  /*Configure GPIO pin : USB_IDENT_Pin */
+  GPIO_InitStruct.Pin = USB_IDENT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  HAL_GPIO_Init(USB_IDENT_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : DISP_IO1_Pin */
-  GPIO_InitStruct.Pin = DISP_IO1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  /*Configure GPIO pin : AD5941_CS_Pin */
+  GPIO_InitStruct.Pin = AD5941_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(DISP_IO1_GPIO_Port, &GPIO_InitStruct);
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(AD5941_CS_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : AD5941_RESET_Pin */
+  GPIO_InitStruct.Pin = AD5941_RESET_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(AD5941_RESET_GPIO_Port, &GPIO_InitStruct);
 
 }
 

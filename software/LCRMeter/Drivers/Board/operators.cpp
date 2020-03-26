@@ -4,25 +4,27 @@
 
 void * operator new(size_t size)
 {
-//	printf("New: allocating %d bytes\n", size);
-	return pvPortMalloc(size);
+	void *ptr = pvPortMalloc(size);
+	LOG(Log_System, LevelDebug, "New: allocating %d bytes: %p", size, ptr);
+	return ptr;
 }
 
 void * operator new[](size_t size)
 {
-//	printf("New: allocating %d bytes\n", size);
-	return pvPortMalloc(size);
+	void *ptr = pvPortMalloc(size);
+	LOG(Log_System, LevelDebug, "New: allocating %d bytes: %p", size, ptr);
+	return ptr;
 }
 
 void operator delete(void* ptr)
 {
-//	printf("Delete: freeing pointer: %p\n", ptr);
+	LOG(Log_System, LevelDebug, "Delete: freeing pointer: %p", ptr);
     vPortFree(ptr);
 }
 
 void operator delete[](void* ptr)
 {
-//	printf("Delete: freeing pointer: %p\n", ptr);
+	LOG(Log_System, LevelDebug, "Delete: freeing pointer: %p", ptr);
     vPortFree(ptr);
 }
 

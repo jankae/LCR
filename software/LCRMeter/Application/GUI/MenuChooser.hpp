@@ -13,7 +13,7 @@
 class MenuChooser : public MenuEntry {
 public:
 	MenuChooser(const char *name, const char * const *items, uint8_t *value,
-			Callback cb = nullptr, void *ptr = nullptr);
+			Callback cb = nullptr, void *ptr = nullptr, bool popup = true);
 
 private:
 	void draw(coords_t offset) override;
@@ -29,6 +29,7 @@ private:
 	Callback cb;
 	void *ptr;
     uint8_t *value;
+    bool popup;
     char name[MaxNameLength + 1];
     const char * const *items;
 };

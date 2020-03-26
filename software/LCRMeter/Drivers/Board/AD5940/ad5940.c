@@ -9,7 +9,7 @@
 #define AD_IDENT_REGVAL			0x4144
 #define CHIP_ID_REGVAL			0x5502
 
-#define Log_AD5940		(/*LevelDebug|*/LevelInfo|LevelWarn|LevelError|LevelCrit)
+#define Log_AD5940		(LevelDebug|LevelInfo|LevelWarn|LevelError|LevelCrit)
 
 typedef enum {
 	AD5940_SPICMD_SETADDR = 		0x20,
@@ -235,6 +235,7 @@ ad5940_result_t ad5940_init(ad5940_t *a) {
 	a->autoranging = true;
 
 	// check identification registers
+	ad5940_read_reg(a, AD5940_REG_ADIID); // first SPI read seems to fail, do dummy read
 	uint32_t AD_id = ad5940_read_reg(a, AD5940_REG_ADIID);
 	uint32_t chip_id = ad5940_read_reg(a, AD5940_REG_CHIPID);
 	if (AD_id != AD_IDENT_REGVAL || chip_id != CHIP_ID_REGVAL) {

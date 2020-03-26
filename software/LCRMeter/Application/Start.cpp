@@ -4,13 +4,14 @@
 #include "display.h"
 #include "FreeRTOS.h"
 #include "semphr.h"
-#include "input.hpp"
+#include "input.h"
 #include "desktop.hpp"
 #include "gui.hpp"
-#include "touch.hpp"
+#include "touch.h"
 #include "Config.hpp"
 #include "Persistence.hpp"
 #include "LCR.hpp"
+#include "Frontend.hpp"
 
 extern ADC_HandleTypeDef hadc1;
 // global mutex controlling access to SPI1 (used for touch + SD card)
@@ -18,6 +19,7 @@ SemaphoreHandle_t xMutexSPI1;
 static StaticSemaphore_t xSemSPI1;
 
 static bool VCCRail() {
+	HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
 	HAL_ADC_Start(&hadc1);
 	if (HAL_ADC_PollForConversion(&hadc1, 10) != HAL_OK) {
 		return false;
@@ -35,10 +37,6 @@ static bool VCCRail() {
 	}
 }
 
-static bool Frontend_init() {
-	return true; // TODO
-}
-
 using Test = struct {
 	const char *name;
 	bool (*function)(void);
@@ -46,9 +44,9 @@ using Test = struct {
 
 constexpr Test Selftests[] = {
 		{"3V3 rail", VCCRail},
-		{"Frontend init", Frontend_init},
-		{"Load touch cal.", Input::LoadCalibration},
-		{"Application init", LCR::Init},
+		{"Frontend init", Frontend::Init},
+		{"Touch thread:", input_Init},
+		{"Persistance:", Persistence::Load},
 };
 constexpr uint8_t nTests = sizeof(Selftests) / sizeof(Selftests[0]);
 
@@ -57,11 +55,12 @@ void Start() {
 	log_init();
 	LOG(Log_App, LevelInfo, "Start");
 	Persistence::Init();
+	touch_Init();
 
 	xMutexSPI1 = xSemaphoreCreateMutexStatic(&xSemSPI1);
 
 	// initialize display
-	display_Init();
+	//vTaskDelay(1);
 	display_SetBackground(COLOR_BLACK);
 	display_SetForeground(COLOR_WHITE);
 	display_SetFont(Font_Big);
@@ -93,14 +92,14 @@ void Start() {
 			"Press screen to continue");
 	{
 		coords_t dummy;
-		while (!Touch::GetCoordinates(dummy))
+		while (!touch_GetCoordinates(&dummy))
 			;
-		while (Touch::GetCoordinates(dummy))
+		while (touch_GetCoordinates(&dummy))
 			;
 	}
 
 //	Loadcells::Setup(0x3F, MAX11254_RATE_CONT1_9_SINGLE50);
-	Input::Init();
+//	Input::Init();
 //	Input::Calibrate();
 //	Desktop d;
 //	App::Info app;
@@ -129,9 +128,8 @@ void Start() {
 
 //	GUI::Init(d);
 
-
-	Persistence::Load();
 //	Config::Load("default.cfg");
+	LCR::Init();
 
 	LCR::Run(); // does not return
 	while(1) {

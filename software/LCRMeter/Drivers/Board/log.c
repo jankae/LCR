@@ -138,6 +138,9 @@ void log_write(const char *module, uint8_t level, const char *fmt, ...) {
 		xSemaphoreGive(mutex);
 	}
 #endif
+#ifdef LOG_BLOCKING
+	log_flush();
+#endif
 }
 
 void log_flush() {

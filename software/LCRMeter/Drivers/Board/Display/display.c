@@ -1,5 +1,6 @@
 #include "display.h"
 #include "main.h"
+#include "log.h"
 
 #define RST_HIGH()			(DISP_RST_GPIO_Port->BSRR = DISP_RST_Pin)
 #define RST_LOW()			(DISP_RST_GPIO_Port->BSRR = DISP_RST_Pin<<16u)
@@ -27,39 +28,39 @@ static activeArea_t active;
 
 inline void setData(uint16_t data) {
 	uint32_t buf = data;
-	asm("rev %0, %0\n\t"
-		"rbit %0, %0"
-		: "=r" (buf)
-		: "r" (buf));
+//	asm("rev %0, %0\n\t"
+//		"rbit %0, %0"
+//		: "=r" (buf)
+//		: "r" (buf));
 	GPIOE->ODR = buf;
 }
 
 inline void selectRegister(uint8_t reg) {
 	RS_LOW();
 	setData(reg);
-	CS_LOW();
 	WR_LOW();
+	CS_LOW();
 	asm volatile("nop");
 	asm volatile("nop");
 	asm volatile("nop");
 	asm volatile("nop");
 	asm volatile("nop");
-	WR_HIGH();
 	CS_HIGH();
+	WR_HIGH();
 }
 
 inline void writeData(uint16_t data) {
 	RS_HIGH();
 	setData(data);
-	CS_LOW();
 	WR_LOW();
+	CS_LOW();
 	asm volatile("nop");
 	asm volatile("nop");
 	asm volatile("nop");
 	asm volatile("nop");
 	asm volatile("nop");
-	WR_HIGH();
 	CS_HIGH();
+	WR_HIGH();
 }
 
 uint16_t readData(void) {
@@ -76,16 +77,16 @@ uint16_t readData(void) {
 	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-	HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+	HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
 	/* Read cycle */
-	RS_HIGH();
-	HAL_Delay(2);
-	CS_LOW();
+	RS_LOW();
 	HAL_Delay(2);
 	RD_LOW();
 	HAL_Delay(2);
-	uint16_t data = GPIOD->IDR;
+	CS_LOW();
+	HAL_Delay(2);
+	uint16_t data = GPIOE->IDR;
 	CS_HIGH();
 	HAL_Delay(2);
 	RD_HIGH();
@@ -93,7 +94,7 @@ uint16_t readData(void) {
 
 	/* configure data pins as outputs */
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-	HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+	HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
 	return data;
 }
@@ -144,7 +145,6 @@ void SSD1289_Init(void) {
 	CS_LOW();
 	RD_HIGH();
 	WR_HIGH();
-
 
 
 	/* enable oscillator */
@@ -237,9 +237,26 @@ color_t display_GetBackground(void) {
 void display_Clear() {
 	setXY(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
 	uint32_t i = DISPLAY_WIDTH * DISPLAY_HEIGHT;
+//	for (uint16_t j = 0x0001; j > 0; j <<= 1) {
+//		i = 500;
+//		for (; i > 0; i--) {
+//			writeData(j);
+//		}
+//	}
+//	i = 1000;
 	for (; i > 0; i--) {
 		writeData(background);
 	}
+//	i = 1000;
+//	for (; i > 0; i--) {
+//		writeData(COLOR_GREEN);
+//	}
+//	setXY(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
+//	i = 10;
+//	for (; i > 0; i--) {
+//		uint16_t data = readData();
+//		LOG(Log_App, LevelWarn, "%u: 0x%04x", i, data);
+//	}
 }
 
 void display_Pixel(int16_t x, int16_t y, uint16_t color) {

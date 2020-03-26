@@ -17,7 +17,7 @@ extern "C" {
  * might be irritating. In this case uncomment the following line. Whenever the
  * buffer is too full, a call to log_write blocks until enough space is available.
  */
-#define LOG_BLOCKING
+//#define LOG_BLOCKING
 
 #define USE_ASSERT
 #define LOG_USE_MUTEXES
@@ -31,7 +31,7 @@ extern "C" {
 #define LevelAll   0x1F
 
 // enabled levels for individual log sources
-#define Log_System  	(LevelAll)
+#define Log_System  	(LevelAll&~LevelDebug)
 #define Log_Exti		(LevelAll)
 #define Log_App		  	(LevelAll)
 #define Log_MAX11254	(LevelAll)
@@ -44,7 +44,7 @@ extern "C" {
 // if LevelDebug is omitted from this mask,
 // debug message will not be logged regardless
 // of individual source settings
-#define Global_Level_Mask (LevelAll&~LevelDebug)
+#define Global_Level_Mask (LevelAll)
 
 #define LOG(source, level, message, ...) do { \
     if (source & level & Global_Level_Mask) { \

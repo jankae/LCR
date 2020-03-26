@@ -6,6 +6,10 @@
 #include "FreeRTOS.h"
 #include "semphr.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // If the SPI interface is shared across multiple instances or other modules, this mutex is required
 //#define AD5940_USE_SPI_MUTEX
 #ifdef AD5940_USE_SPI_MUTEX
@@ -577,5 +581,9 @@ void ad5940_set_bits(ad5940_t *a, ad5940_reg_t reg, uint32_t bits);
 void ad5940_clear_bits(ad5940_t *a, ad5940_reg_t reg, uint32_t bits);
 void ad5940_modify_reg(ad5940_t *a, ad5940_reg_t reg, uint32_t val,
 		uint32_t mask);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

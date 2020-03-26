@@ -199,6 +199,63 @@ void Unit::StringFromValue(char *to, uint8_t len, int32_t val,
 		to[--pos] = ' ';
 	}
 }
+bool SIStringFromFloat(char* to, uint8_t len, float val) {
+	if (len < 7) {
+		// need at least 7 characters (sign + 4 digits + decimal point and prefix)
+		return false;
+	}
+	using Prefix = struct {
+		char name;
+		float factor;
+	};
+	static constexpr Prefix prefixes[] = {
+			{'f', 1E-15f},
+			{'p', 1E-12f},
+			{'n', 1E-9f},
+			{'u', 1E-6f},
+			{'m', 1E-3f},
+			{' ', 1E-0f},
+			{'k', 1E+3f},
+			{'M', 1E+6f},
+			{'G', 1E+9f},
+			{'T', 1E+12f},
+			{'P', 1E+15f},
+	};
+	uint8_t prefix_index = 0;
+	while (val >= prefixes[prefix_index].factor * 1000) {
+		prefix_index++;
+		if (prefix_index > ARRAY_SIZE(prefixes)) {
+			// Value is too high to be encoded
+			return false;
+		}
+	}
+	int16_t preDot = val / prefixes[prefix_index].factor;
+	float postDot = val / prefixes[prefix_index].factor - preDot;
+	if(preDot < 0) {
+		*to++ = '-';
+		preDot = -preDot;
+	} else {
+		*to++ = ' ';
+	}
+	uint8_t postDotLen = len - 1 	// sign
+			- 1 					// decimal point
+			- 1;					// prefix
+	for (uint8_t i = 0; i < 3; i++) {
+		if (preDot >= 100) {
+			*to++ = preDot / 100 + '0';
+			postDotLen--;
+		}
+		preDot *= 10;
+	}
+	*to++ = '.';
+	while (postDotLen > 0) {
+		postDot *= 10;
+		*to++ = (int) postDot + '0';
+		postDotLen--;
+	}
+	*to = prefixes[prefix_index].name;
+	return true;
+}
 
 // TODO merge with common_LeastDigitValueFromString?
 uint8_t Unit::ValueFromString(int32_t *value, char *s,

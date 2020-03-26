@@ -4,7 +4,7 @@
 #include "Dialog/ItemChooserDialog.hpp"
 
 MenuChooser::MenuChooser(const char* name, const char* const * items,
-		uint8_t* value, Callback cb, void *ptr) {
+		uint8_t* value, Callback cb, void *ptr, bool popup) {
 	/* set member variables */
 	this->cb = cb;
 	this->ptr = ptr;
@@ -12,6 +12,7 @@ MenuChooser::MenuChooser(const char* name, const char* const * items,
 	this->value = value;
 	strncpy(this->name, name, MaxNameLength);
 	this->name[MaxNameLength] = 0;
+	this->popup = popup;
 	selectable = false;
 }
 
@@ -33,9 +34,26 @@ void MenuChooser::input(GUIEvent_t* ev) {
 //		}
 //		/* no break */
 	case EVENT_TOUCH_PRESSED:
-		new ItemChooserDialog("Select setting", items, *value,
-				pmf_cast<void (*)(void*, bool, uint8_t), MenuChooser,
-						&MenuChooser::ChooserCallback>::cfn, this);
+		if (popup) {
+			// Select new item with itemchooser dialog
+			new ItemChooserDialog("Select setting", items, *value,
+					pmf_cast<void (*)(void*, bool, uint8_t), MenuChooser,
+							&MenuChooser::ChooserCallback>::cfn, this);
+		} else {
+			// simply cycle through items
+			uint8_t numItems = 0;
+			while(items[numItems]) {
+				numItems++;
+			}
+			(*value)++;
+			if (*value >= numItems) {
+				*value = 0;
+			}
+			if (cb) {
+				cb(ptr, this);
+			}
+			requestRedrawFull();
+		}
 		break;
 	}
 	ev->type = EVENT_NONE;
