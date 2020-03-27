@@ -264,7 +264,7 @@ static void ConfigureFrontendMeasurement() {
 
 void LCR::Run() {
 	handle = xTaskGetCurrentTaskHandle();
-	//ConfigureFrontendMeasurement();
+	ConfigureFrontendMeasurement();
 	while (1) {
 		xTaskNotifyWait(0, 0, nullptr, portMAX_DELAY);
 		if (measurementUpdated) {

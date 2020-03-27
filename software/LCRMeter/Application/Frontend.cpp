@@ -117,6 +117,7 @@ static bool SetBias(uint32_t biasVoltage) {
 	ad5940_take_mutex(&ad);
 	ad5940_modify_reg(&ad, AD5940_REG_LPDACDAT0, code_DAC, 0x00000FFF);
 	ad5940_release_mutex(&ad);
+	LOG(Log_Frontend, LevelDebug, "Set bias voltage of %lu, DAC code %u", biasVoltage, code_DAC);
 	return true;
 }
 
@@ -124,12 +125,14 @@ static void SetSwitchesForRCAL() {
 	ad5940_take_mutex(&ad);
 	ad5940_modify_reg(&ad, AD5940_REG_SWCON, AD5940_EXAMP_DSW_RCAL0 | AD5940_HSTSW_RCAL1, 0xF00F);
 	ad5940_release_mutex(&ad);
+	LOG(Log_Frontend, LevelDebug, "Switches set for calibration");
 }
 
 static void SetSwitchesForMeasurement() {
 	ad5940_take_mutex(&ad);
 	ad5940_modify_reg(&ad, AD5940_REG_SWCON, AD5940_EXAMP_DSW_CE0 | AD5940_HSTSW_DE0_DIRECT, 0xF00F);
 	ad5940_release_mutex(&ad);
+	LOG(Log_Frontend, LevelDebug, "Switches set for measurement");
 }
 
 enum class ADCMeasurement : uint8_t {
@@ -143,12 +146,15 @@ static void StartADC(ADCMeasurement m) {
 	switch(m) {
 	case ADCMeasurement::Current:
 		ad5940_set_ADC_mux(&ad, AD5940_ADC_MUXP_HSTIAP, AD5940_ADC_MUXN_HSTIAN);
+		LOG(Log_Frontend, LevelDebug, "Starting ADC current measurement");
 		break;
 	case ADCMeasurement::Voltage:
 		ad5940_set_ADC_mux(&ad, AD5940_ADC_MUXP_AIN0, AD5940_ADC_MUXN_AIN1);
+		LOG(Log_Frontend, LevelDebug, "Starting ADC voltage measurement");
 		break;
 	case ADCMeasurement::VoltageCalibrationResistor:
 		ad5940_set_ADC_mux(&ad, AD5940_ADC_MUXP_AIN2, AD5940_ADC_MUXN_AIN3);
+		LOG(Log_Frontend, LevelDebug, "Starting ADC calibration measurement");
 		break;
 	}
 	ad5940_ADC_start(&ad);
@@ -180,7 +186,7 @@ static void frontend_task(void*) {
 	Frontend::Settings settings;
 	uint8_t sampleCnt = 0;
 	bool voltageMeasurement = false;
-	uint16_t excitationAmplitude = 10;
+	uint16_t excitationAmplitude = 10000;
 	float sumMagCurrent = 0.0f;
 	float sumPhaseCurrent = 0.0f;
 	float sumMagVoltage = 0.0f;
@@ -232,7 +238,7 @@ static void frontend_task(void*) {
 				ad5940_waveinfo_t wave;
 				wave.type = AD5940_WAVE_SINE;
 				wave.sine.amplitude = excitationAmplitude;
-				wave.sine.frequency = settings.frequency;
+				wave.sine.frequency = settings.frequency * 1000;
 				wave.sine.offset = 0;
 				wave.sine.phaseoffset = 0;
 				ad5940_generate_waveform(&ad, &wave);
@@ -250,6 +256,10 @@ static void frontend_task(void*) {
 		case State::Measuring: {
 			ad5940_dftresult_t result;
 			ad5940_get_dft_result(&ad, 1, &result);
+//			ad5940_take_mutex(&ad);
+//			int32_t adc = ad5940_read_reg(&ad, AD5940_REG_ADCDAT);
+//			ad5940_release_mutex(&ad);
+//			LOG(Log_Frontend, LevelDebug, "Raw ADC: %u", adc);
 			sampleCnt++;
 			if (sampleCnt > 1) {
 				if (voltageMeasurement) {
@@ -351,15 +361,30 @@ bool Frontend::Init() {
 	SetBias(0);
 
 	// Set AD5941 to high power mode
-	ad5940_write_reg(&ad, AD5940_REG_PMBW, 0x000D);
-	// Set system clock divider to 2
-	// unlock clock con0
-	ad5940_write_reg(&ad, AD5940_REG_CLKCON0KEY, 0xA815);
-	ad5940_write_reg(&ad, AD5940_REG_CLKCON0, 2);
-	// Lock clock con0
-	ad5940_write_reg(&ad, AD5940_REG_CLKCON0KEY, 0);
+	ad5940_modify_reg(&ad, AD5940_REG_PMBW, 0x000D, 0x000F);
+//	// Set system clock divider to 2
+//	LOG(Log_Frontend, LevelDebug, "CLKCON0 before writing to it: 0x%04x", ad5940_read_reg(&ad, AD5940_REG_CLKCON0));
+//	// unlock clock con0
+//	ad5940_write_reg(&ad, AD5940_REG_CLKCON0KEY, 0xA815);
+//	ad5940_modify_reg(&ad, AD5940_REG_CLKCON0, 2, 0x001F);
+//	// Lock clock con0
+//	ad5940_write_reg(&ad, AD5940_REG_CLKCON0KEY, 0);
+	LOG(Log_Frontend, LevelDebug, "CLKCON0 after writing to it: 0x%04x", ad5940_read_reg(&ad, AD5940_REG_CLKCON0));
+	// Enable external crystal oscillator
+	// unlock osccon0
+	ad5940_write_reg(&ad, AD5940_REG_OSCKEY, 0xCB14);
+	ad5940_set_bits(&ad, AD5940_REG_OSCCON, 0x04);
+	// lock osccon0
+	ad5940_write_reg(&ad, AD5940_REG_OSCKEY, 0);
+	vTaskDelay(5);
+	uint16_t osccon = ad5940_read_reg(&ad, AD5940_REG_OSCCON);
+	if(!(osccon & 0x0400)) {
+		LOG(Log_Frontend, LevelError, "External crystal failed to start");
+		return false;
+	}
+
 	// Switch system and ADC clock to external crystal
-	ad5940_write_reg(&ad, AD5940_REG_CLKSEL, 0x05);
+//	ad5940_modify_reg(&ad, AD5940_REG_CLKSEL, 0x05, 0x000F);
 	// Enable 1.6MHz sample rate
 	ad5940_set_bits(&ad, AD5940_REG_ADCFILTERCON, 0x01);
 	ad5940_release_mutex(&ad);

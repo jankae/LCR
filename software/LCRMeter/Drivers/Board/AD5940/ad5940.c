@@ -775,7 +775,7 @@ ad5940_result_t ad5940_set_excitation_amplifier(ad5940_t *a,
 		// apply voltage set by low power DAC (Vbias and Vzero) to excitation amplifier
 		ad5940_set_bits(a, AD5940_REG_AFECON, (1UL << 21));
 	} else {
-		ad5940_set_bits(a, AD5940_REG_AFECON, (1UL << 21));
+		ad5940_clear_bits(a, AD5940_REG_AFECON, (1UL << 21));
 	}
 
 	// enable excitation amplifier and HSDAC
@@ -947,7 +947,7 @@ ad5940_result_t ad5940_get_dft_result(ad5940_t *a, uint8_t avg, ad5940_dftresult
 		uint32_t start = HAL_GetTick();
 		while (!(ad5940_read_reg(a, AD5940_REG_INTCFLAG0) & 0x02)) {
 			portYIELD();
-			if (HAL_GetTick() - start > 30) {
+			if (HAL_GetTick() - start > 50) {
 				LOG(Log_AD5940, LevelWarn, "Timed out waiting for DFT result");
 				ad5940_release_mutex(a);
 				return AD5940_RES_ERROR;
