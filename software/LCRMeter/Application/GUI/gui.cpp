@@ -8,7 +8,7 @@ bool isPopup;
 
 TaskHandle_t GUIHandle;
 
-static void guiThread(void) {
+void guiThread(void) {
 	LOG(Log_GUI, LevelInfo, "Thread start");
 	GUIHandle = xTaskGetCurrentTaskHandle();
 
@@ -22,7 +22,13 @@ static void guiThread(void) {
 //	topWidget = test;
 
 	while (1) {
-		if (xQueueReceive(GUIeventQueue, &event, 300)) {
+		uint32_t wait = 300;
+		if (topWidget) {
+			if (topWidget->redrawChild || topWidget->redraw) {
+				wait = 0;
+			}
+		}
+		if (xQueueReceive(GUIeventQueue, &event, wait)) {
 			if (topWidget) {
 				switch (event.type) {
 				case EVENT_TOUCH_PRESSED:

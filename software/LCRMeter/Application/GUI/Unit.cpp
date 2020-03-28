@@ -199,7 +199,7 @@ void Unit::StringFromValue(char *to, uint8_t len, int32_t val,
 		to[--pos] = ' ';
 	}
 }
-bool SIStringFromFloat(char* to, uint8_t len, float val) {
+bool Unit::SIStringFromFloat(char* to, uint8_t len, float val, char smallest_prefix) {
 	if (len < 7) {
 		// need at least 7 characters (sign + 4 digits + decimal point and prefix)
 		return false;
@@ -221,8 +221,21 @@ bool SIStringFromFloat(char* to, uint8_t len, float val) {
 			{'T', 1E+12f},
 			{'P', 1E+15f},
 	};
+	if(val < 0) {
+		*to++ = '-';
+		val = -val;
+	} else {
+		*to++ = ' ';
+	}
 	uint8_t prefix_index = 0;
-	while (val >= prefixes[prefix_index].factor * 1000) {
+	while (prefixes[prefix_index].name != smallest_prefix) {
+		prefix_index++;
+		if (prefix_index > ARRAY_SIZE(prefixes)) {
+			// Requested smallest prefix not available
+			return false;
+		}
+	}
+	while (abs(val) >= prefixes[prefix_index].factor * 1000) {
 		prefix_index++;
 		if (prefix_index > ARRAY_SIZE(prefixes)) {
 			// Value is too high to be encoded
@@ -231,29 +244,29 @@ bool SIStringFromFloat(char* to, uint8_t len, float val) {
 	}
 	int16_t preDot = val / prefixes[prefix_index].factor;
 	float postDot = val / prefixes[prefix_index].factor - preDot;
-	if(preDot < 0) {
-		*to++ = '-';
-		preDot = -preDot;
-	} else {
-		*to++ = ' ';
-	}
 	uint8_t postDotLen = len - 1 	// sign
 			- 1 					// decimal point
-			- 1;					// prefix
-	for (uint8_t i = 0; i < 3; i++) {
-		if (preDot >= 100) {
-			*to++ = preDot / 100 + '0';
-			postDotLen--;
-		}
-		preDot *= 10;
+			- 1 					// prefix
+			- 1;					// at least one digit before decimal point
+	if (preDot >= 100) {
+		*to++ = preDot / 100 + '0';
+		postDotLen--;
 	}
+	if (preDot >= 10) {
+		*to++ = (preDot%100) / 10 + '0';
+		postDotLen--;
+	}
+	*to++ = (preDot%10) + '0';
 	*to++ = '.';
 	while (postDotLen > 0) {
+		// remove part before decimal point
+		postDot -= (int) postDot;
 		postDot *= 10;
 		*to++ = (int) postDot + '0';
 		postDotLen--;
 	}
-	*to = prefixes[prefix_index].name;
+	*to++ = prefixes[prefix_index].name;
+	*to = 0;
 	return true;
 }
 

@@ -70,7 +70,7 @@ static const ad5940_hstia_gain_factor_t hstia_gain_factors[] = {
 	{AD5940_HSRTIA_20K, 20000},
 	{AD5940_HSRTIA_40K, 40000},
 	{AD5940_HSRTIA_80K, 80000},
-//	{AD5940_HSRTIA_160K, 160000}, // Experiments show that HSTIA isn't able to maintain regulation with highest gain
+	{AD5940_HSRTIA_160K, 160000}, // Experiments show that HSTIA isn't able to maintain regulation with highest gain
 };
 
 static const uint8_t num_hstia_gain_factors = sizeof(hstia_gain_factors)
@@ -670,7 +670,7 @@ ad5940_result_t ad5940_generate_waveform(ad5940_t *a, ad5940_waveinfo_t *w) {
 
 	switch (w->type) {
 	case AD5940_WAVE_SINE: {
-		LOG(Log_AD5940, LevelDebug, "Setting sinewave generation...");
+		LOG(Log_AD5940, LevelDebug, "Setting sinewave generation of %luHz", w->sine.frequency/1000);
 		/*
 		 * Calculate frequency word. F_out = F_ACLK(16MHz) * F_CW / 2^30
 		 * -> F_CW = F_out * 2^30 / 16MHz.
@@ -700,41 +700,38 @@ ad5940_result_t ad5940_generate_waveform(ad5940_t *a, ad5940_waveinfo_t *w) {
 		 * voltage swing is therefore +/-600mV when the attenuator is set to 1 and the amplifier to 2.
 		 */
 		uint16_t hsdaccon;
-		uint16_t fullscale;
+		uint32_t fullscale;
 		uint32_t max_voltage = abs(w->sine.offset) + abs(w->sine.amplitude);
-		if (max_voltage > 800000) {
+		const uint32_t DAC_max_voltage = 300000;
+		if (max_voltage > DAC_max_voltage * 2) {
 			LOG(Log_AD5940, LevelError,
-					"Unable to set requested sine wave, required voltage not in available range (%lu > 800)",
-					max_voltage);
+					"Unable to set requested sine wave, required voltage not in available range (%lu > %lu)",
+					max_voltage, DAC_max_voltage * 2);
 			break;
-		} else if (max_voltage >= 160000) {
+		} else if (max_voltage >= DAC_max_voltage * 4 / 10) {
 			// requires the maximum range, amplifier = 2, attenuator = 1
 			hsdaccon = 0x0000;
-			// maximum reachable output swing is 800mV in this configuration
-			fullscale = 800000;
+			fullscale = DAC_max_voltage * 2;
 			LOG(Log_AD5940, LevelDebug,
-					"Selected fullscale of 800mV (attenuator = 1, amplifier = 2)");
-		} else if (max_voltage >= 100000) {
+					"Selected fullscale of %lumV (attenuator = 1, amplifier = 2)", fullscale);
+		} else if (max_voltage >= DAC_max_voltage / 4) {
 			// requires attenuator = 0.2, amplifier = 2
 			hsdaccon = 0x0001;
-			// maximum reachable output swing is 160mV in this configuration
-			fullscale = 160000;
+			fullscale = DAC_max_voltage * 4 / 10;
 			LOG(Log_AD5940, LevelDebug,
-					"Selected fullscale of 160mV (attenuator = 0.2, amplifier = 2)");
-		} else if (max_voltage >= 20000) {
+					"Selected fullscale of %lumV (attenuator = 0.2, amplifier = 2)", fullscale);
+		} else if (max_voltage >= DAC_max_voltage / 20) {
 			// requires attenuator = 1, amplifier = 0.25
 			hsdaccon = 0x1000;
-			// maximum reachable output swing is 100mV in this configuration
-			fullscale = 100000;
+			fullscale = DAC_max_voltage / 4;
 			LOG(Log_AD5940, LevelDebug,
-					"Selected fullscale of 100mV (attenuator = 1, amplifier = 0.25)");
+					"Selected fullscale of %lumV (attenuator = 1, amplifier = 0.25)", fullscale);
 		} else {
 			// can use attenuator = 0.2, amplifier = 0.25
 			hsdaccon = 0x1001;
-			// maximum reachable output swing is 20mV in this configuration
-			fullscale = 20000;
+			fullscale = DAC_max_voltage / 20;
 			LOG(Log_AD5940, LevelDebug,
-					"Selected fullscale of 20mV (attenuator = 0.2, amplifier = 0.25)");
+					"Selected fullscale of %lumV (attenuator = 0.2, amplifier = 0.25)", fullscale);
 		}
 		ad5940_modify_reg(a, AD5940_REG_HSDACCON, hsdaccon, 0x1001);
 		/*
@@ -750,7 +747,7 @@ ad5940_result_t ad5940_generate_waveform(ad5940_t *a, ad5940_waveinfo_t *w) {
 		// finally, enable the waveform generator and select the sine waveform
 		ad5940_modify_reg(a, AD5940_REG_WGCON, 0x0004, 0x0006);
 		ad5940_set_bits(a, AD5940_REG_AFECON, (1UL << 14));
-		LOG(Log_AD5940, LevelInfo, "Sinewave enabled");
+		LOG(Log_AD5940, LevelDebug, "Sinewave enabled");
 		res = AD5940_RES_OK;
 	}
 		break;

@@ -18,6 +18,7 @@ MenuAction::~MenuAction() {
 
 void MenuAction::draw(coords_t offset) {
 	display_SetForeground(Foreground);
+	display_SetBackground(Background);
 	display_AutoCenterString(name, offset, offset + size);
 }
 

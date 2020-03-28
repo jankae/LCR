@@ -8,6 +8,8 @@
 #include <math.h>
 #include <util.h>
 #include "Persistence.hpp"
+#include "GUI/Dialog/progress.hpp"
+#include "HardwareLimits.hpp"
 
 static ad5940_t ad;
 extern SPI_HandleTypeDef hspi3;
@@ -18,12 +20,16 @@ static constexpr uint32_t referenceVoltage = 1100000;
 static Frontend::Callback callback;
 static void *cb_ctx;
 
+static constexpr ad5940_pga_gain_t PGA_gain = AD5940_PGA_GAIN_4;
+
 static constexpr uint32_t stack_size_words = 1024;
 static uint32_t task_stack[stack_size_words];
 static TaskHandle_t taskHandle;
 static StaticTask_t task;
 static StaticQueue_t msgQueue;
 static QueueHandle_t queueHandle;
+
+static ProgressDialog *cal_dialog;
 
 enum class MessageType : uint8_t {
 	MeasurementConfig,
@@ -48,6 +54,7 @@ static constexpr uint32_t calibration_frequencies[] = {
 static constexpr uint8_t num_rtia_steps = AD5940_HSRTIA_OPEN;
 
 static Calibration calibration_points[num_rtia_steps][ARRAY_SIZE(calibration_frequencies)];
+static int32_t calibration_BiasVoltageOffset;
 
 static float interpolate(float value, float scaleFromLow, float scaleFromHigh,
         float scaleToLow, float scaleToHigh) {
@@ -106,18 +113,21 @@ static uint32_t GetCalibrationExcitationAmplitude(ad5940_hsrtia_t rtia) {
 static constexpr uint8_t msgQueueLen = 16;
 static uint8_t queueBuf[sizeof(Message) * msgQueueLen];
 
-static bool SetBias(uint32_t biasVoltage) {
+static bool SetBias(int32_t biasVoltage, bool applyCalibration = true) {
 	if(biasVoltage > 10000000) {
 		return false;
 	}
 	uint32_t highSide = biasVoltage + referenceVoltage;
+	if (applyCalibration) {
+		highSide += calibration_BiasVoltageOffset;
+	}
 	// convert to DAC voltage (Gain of 4.9)
 	uint32_t V_DAC = highSide * 10 / 49;
 	uint16_t code_DAC = util_Map(V_DAC, 200000, 2400000, 0, 4095);
 	ad5940_take_mutex(&ad);
 	ad5940_modify_reg(&ad, AD5940_REG_LPDACDAT0, code_DAC, 0x00000FFF);
 	ad5940_release_mutex(&ad);
-	LOG(Log_Frontend, LevelDebug, "Set bias voltage of %lu, DAC code %u", biasVoltage, code_DAC);
+	LOG(Log_Frontend, LevelDebug, "Set bias voltage of %ld, DAC code %u", biasVoltage, code_DAC);
 	return true;
 }
 
@@ -143,13 +153,17 @@ enum class ADCMeasurement : uint8_t {
 
 static void StartADC(ADCMeasurement m) {
 	ad5940_ADC_stop(&ad);
+	// Clear ADC min/max flags
+	ad5940_take_mutex(&ad);
+	ad5940_write_reg(&ad, AD5940_REG_INTCCLR, 0x30);
+	ad5940_release_mutex(&ad);
 	switch(m) {
 	case ADCMeasurement::Current:
 		ad5940_set_ADC_mux(&ad, AD5940_ADC_MUXP_HSTIAP, AD5940_ADC_MUXN_HSTIAN);
 		LOG(Log_Frontend, LevelDebug, "Starting ADC current measurement");
 		break;
 	case ADCMeasurement::Voltage:
-		ad5940_set_ADC_mux(&ad, AD5940_ADC_MUXP_AIN0, AD5940_ADC_MUXN_AIN1);
+		ad5940_set_ADC_mux(&ad, AD5940_ADC_MUXP_AIN1, AD5940_ADC_MUXN_AIN0);
 		LOG(Log_Frontend, LevelDebug, "Starting ADC voltage measurement");
 		break;
 	case ADCMeasurement::VoltageCalibrationResistor:
@@ -164,13 +178,85 @@ static void SetCalibrationMeasurement(uint32_t freq, ad5940_hsrtia_t rtia) {
 	SetSwitchesForRCAL();
 	// Configure the frontend
 	SetBias(0);
+	ad5940_take_mutex(&ad);
+	ad5940_modify_reg(&ad, AD5940_REG_HSRTIACON, rtia, 0x0F);
+	ad5940_release_mutex(&ad);
 	ad5940_waveinfo_t wave;
 	wave.type = AD5940_WAVE_SINE;
 	wave.sine.amplitude = GetCalibrationExcitationAmplitude(rtia);
-	wave.sine.frequency = freq;
+	wave.sine.frequency = freq * 1000;
 	wave.sine.offset = 0;
 	wave.sine.phaseoffset = 0;
 	ad5940_generate_waveform(&ad, &wave);
+}
+
+static uint32_t GetADCAverage(uint16_t samples) {
+	uint32_t sum = 0;
+	ad5940_take_mutex(&ad);
+	for (uint16_t i = 0; i < samples; i++) {
+		sum += ad5940_read_reg(&ad, AD5940_REG_ADCDAT);
+		vTaskDelay(1);
+	}
+	ad5940_release_mutex(&ad);
+	return sum / samples;
+}
+
+// Assumes the outputs are shorted
+static void RunBiasVoltageCalibration() {
+	// First, get ADC offset
+	ad5940_ADC_stop(&ad);
+	// Connect +/- inputs to same voltage
+	ad5940_set_ADC_mux(&ad, AD5940_ADC_MUXP_VBIAS_CAP, AD5940_ADC_MUXN_VBIAS_CAP);
+	ad5940_ADC_start(&ad);
+	int32_t ADCoffset = GetADCAverage(100);
+	LOG(Log_Frontend, LevelDebug, "ADC offset: %ld", ADCoffset);
+	// Reasonable limits for worst case bias offset calibration
+	constexpr int32_t minBias = -100000;
+	constexpr int32_t maxBias = 100000;
+	// bias voltage change equivalent to smaller 0.5LSB of DAC
+	constexpr int32_t smallestChange = 1000;
+
+	// Set waveform amplitude to zero, highest amplification for TIA
+	ad5940_waveinfo_t wave;
+	wave.type = AD5940_WAVE_SINE;
+	wave.sine.amplitude = 0;
+	wave.sine.frequency = 1000000;
+	wave.sine.offset = 0;
+	wave.sine.phaseoffset = 0;
+	ad5940_generate_waveform(&ad, &wave);
+
+	ad5940_take_mutex(&ad);
+	ad5940_modify_reg(&ad, AD5940_REG_HSRTIACON, AD5940_HSRTIA_160K, 0x0F);
+	ad5940_release_mutex(&ad);
+
+	SetSwitchesForMeasurement();
+	StartADC(ADCMeasurement::Current);
+
+	// binary search for bias voltage that results in the least current
+	int32_t step_size = (maxBias - minBias) / 4;
+	calibration_BiasVoltageOffset = 0;
+	do {
+		// Set new bias voltage
+		SetBias(calibration_BiasVoltageOffset, false);
+		// Wait for voltage to settle
+		vTaskDelay(1000);
+		// Sample ADC. Due to high gain of TIA even small voltage differences
+		// result in high current -> low number of averages sufficient
+		int32_t adc = GetADCAverage(10);
+
+		LOG(Log_Frontend, LevelDebug, "Bias Cal: %ld -> ADC: %ld",
+				calibration_BiasVoltageOffset, adc - ADCoffset);
+		if (adc < ADCoffset) {
+			// positive current into DE0, bias voltage too high
+			calibration_BiasVoltageOffset -= step_size;
+		} else {
+			// negative current into DE0, bias voltage too low
+			calibration_BiasVoltageOffset += step_size;
+		}
+		// reduce step size for next iteration
+		step_size /= 2;
+	} while(step_size > smallestChange);
+	SetBias(0);
 }
 
 static void frontend_task(void*) {
@@ -186,12 +272,12 @@ static void frontend_task(void*) {
 	Frontend::Settings settings;
 	uint8_t sampleCnt = 0;
 	bool voltageMeasurement = false;
-	uint16_t excitationAmplitude = 10000;
 	float sumMagCurrent = 0.0f;
 	float sumPhaseCurrent = 0.0f;
 	float sumMagVoltage = 0.0f;
 	float sumPhaseVoltage = 0.0f;
-	ad5940_hsrtia_t rtia = AD5940_HSRTIA_10K;
+	ad5940_hsrtia_t rtia = AD5940_HSRTIA_1K;
+	bool currentMeasurementClipped = false;
 
 	// Calibration state variables
 	uint16_t calFreqIndex = 0;
@@ -205,6 +291,9 @@ static void frontend_task(void*) {
 				state = State::Stopped;
 				break;
 			case MessageType::RunCalibration:
+				// Create calibration window
+				cal_dialog = new ProgressDialog("Calibrating...", 200);
+				RunBiasVoltageCalibration();
 				calFreqIndex = 0;
 				rtia = AD5940_HSRTIA_200;
 				state = State::Calibrating;
@@ -215,12 +304,13 @@ static void frontend_task(void*) {
 				sumMagVoltage = 0.0f;
 				sumPhaseVoltage = 0.0f;
 				voltageMeasurement = false;
-				settings.averages = 100;
+				settings.averages = 50;
 
 				// Configure the frontend
 				SetCalibrationMeasurement(calibration_frequencies[calFreqIndex], rtia);
 
 				StartADC(ADCMeasurement::Current);
+
 				break;
 			case MessageType::MeasurementConfig:
 				settings = msg.settings;
@@ -235,9 +325,13 @@ static void frontend_task(void*) {
 				// Configure the frontend
 				SetSwitchesForMeasurement();
 				SetBias(settings.biasVoltage);
+				// Select correct TIA gain
+				ad5940_take_mutex(&ad);
+				ad5940_modify_reg(&ad, AD5940_REG_HSRTIACON, rtia, 0x0F);
+				ad5940_release_mutex(&ad);
 				ad5940_waveinfo_t wave;
 				wave.type = AD5940_WAVE_SINE;
-				wave.sine.amplitude = excitationAmplitude;
+				wave.sine.amplitude = msg.settings.excitationVoltage;
 				wave.sine.frequency = settings.frequency * 1000;
 				wave.sine.offset = 0;
 				wave.sine.phaseoffset = 0;
@@ -246,6 +340,9 @@ static void frontend_task(void*) {
 				StartADC(ADCMeasurement::Current);
 
 				break;
+			}
+			if(msg.type != MessageType::RunCalibration && cal_dialog) {
+				delete cal_dialog;
 			}
 		}
 		switch(state) {
@@ -270,43 +367,137 @@ static void frontend_task(void*) {
 					sumPhaseCurrent += result.phase;
 				}
 			}
-			if (sampleCnt > settings.averages + 1) {
+			if (sampleCnt > settings.averages) {
 				if (voltageMeasurement) {
+					Frontend::Result result;
 					// all done calculate impedance
 					sumMagCurrent /= settings.averages;
 					sumPhaseCurrent /= settings.averages;
 					sumMagVoltage /= settings.averages;
 					sumPhaseVoltage /= settings.averages;
+
+					ad5940_take_mutex(&ad);
+					bool voltageMeasurementClipped = ad5940_read_reg(&ad, AD5940_REG_INTCFLAG0) & 0x30;
+					ad5940_release_mutex(&ad);
+
+					// Check ranges for valid result
+					Frontend::ResultType type = Frontend::ResultType::Valid;
+					constexpr float minMag = 0.00005f;
+					if (sumMagCurrent < minMag && sumMagVoltage < minMag) {
+						// No current flowing and no voltage measured -> no leads connected
+						type = Frontend::ResultType::OpenLeads;
+					} else if (sumMagCurrent < minMag || voltageMeasurementClipped) {
+						// No current flowing, connected impedance too high
+						type = Frontend::ResultType::Overrange;
+					} else if (sumMagVoltage < minMag || currentMeasurementClipped) {
+						// No voltage measurable, impedance too low
+						type = Frontend::ResultType::Underrange;
+					}
+
+					constexpr uint32_t ADC_max_value = 32768		// 16384 is the value according to datasheet, ADC actually reports values up to 32768
+														* 4			// two additional bits due to DFT
+														* 0.75f;	// Safety factor to stay away from ADC limits
+					result.usedRangeU = sumMagVoltage * 100 * (1UL << 17) / ADC_max_value;
+					result.usedRangeI = sumMagCurrent * 100 * (1UL << 17) / ADC_max_value;
+
+					// Adjust current measurement by TIA gain (results in all calibration factors roughly equal to 1)
+					sumMagCurrent /= ad5940_HSTIA_gain_to_value(rtia);
 					float mag = sumMagVoltage / sumMagCurrent;
 					float phase = sumPhaseVoltage - sumPhaseCurrent;
-					sumMagCurrent = 0.0f;
-					sumPhaseCurrent = 0.0f;
-					sumMagVoltage = 0.0f;
-					sumPhaseVoltage = 0.0f;
+					LOG(Log_Frontend, LevelDebug,
+							"Measurement U: %f@%f, I: %f@%f", sumMagVoltage,
+							sumPhaseVoltage, sumMagCurrent, sumPhaseCurrent);
 
 					if (state == State::Measuring) {
 						auto cal = GetCalibration(rtia, settings.frequency);
 						mag *= cal.MagCal;
 						phase -= cal.PhaseCal;
-						Frontend::Result result;
+						// constrain phase to +/-PI
+						if (phase >= M_PI) {
+							phase -= 2 * M_PI;
+						} else if (phase <= -M_PI) {
+							phase += 2 * M_PI;
+						}
 						result.Magnitude = mag;
-						result.Phase = phase;
+						// convert phase to degrees
+						result.Phase = phase * 180.0 / M_PI;
+						/*
+						 * Reconstruct I/Q values from magnitude and phase, making it easier to calculate
+						 * component values later on. Original I/Q is not valid anymore because the
+						 * calibration works in the polar domain
+						 */
 						result.I = mag * cos(phase);
 						result.Q = mag * sin(phase);
 						result.frequency = settings.frequency;
+
+						constexpr float mag_to_RMS = (1UL << 17)		// compensate division in ad5940_get_dft_result
+													* 1.835f/32768		// ADC bits and slope compensation
+													* 0.25f 			// Compensate additional 2 bits in DFT
+													* M_SQRT1_2;		// Peak to RMS
+						result.RMS_U = sumMagVoltage * mag_to_RMS * 10 / ad5940_PGA_gain_to_value10(PGA_gain);
+						result.RMS_I = sumMagCurrent * mag_to_RMS * 10 / ad5940_PGA_gain_to_value10(PGA_gain);
+						/*
+						 * The calibration factor contains corrections for both the current and the voltage, it is
+						 * not possible to separate their influences. However, the voltage accuracy of the AD5941 is
+						 * significantly better than the current accuracy (due to inaccurate resistors in the TIA) so
+						 * it is assumed here that all error sources come from the current measurement only and the
+						 * calibration factor is used to correct the measured current value.
+						 */
+						result.RMS_I /= cal.MagCal;
+
+
+						result.type = type;
+						result.clippedI = currentMeasurementClipped;
+						result.clippedU = voltageMeasurementClipped;
+
 						// TODO fill with proper values
 						result.range = Frontend::Range::AUTO;
-						result.valid = true;
 						if (callback) {
 							callback(cb_ctx, result);
 						}
+						if (settings.range == Frontend::Range::AUTO) {
+							// Check if range switch is required
+							if (result.clippedI || result.usedRangeI > 95) {
+								// reduce tia gain if possible
+								if (rtia != AD5940_HSRTIA_200) {
+									rtia = (ad5940_hsrtia_t) ((int)rtia - 1);
+									ad5940_take_mutex(&ad);
+									ad5940_modify_reg(&ad, AD5940_REG_HSRTIACON,
+											rtia, 0x0F);
+									ad5940_release_mutex(&ad);
+								}
+							} else if (result.usedRangeI < 15) {
+								// increase tia gain if possible
+								if (rtia != AD5940_HSRTIA_160K) {
+									rtia = (ad5940_hsrtia_t) ((int)rtia + 1);
+									ad5940_take_mutex(&ad);
+									ad5940_modify_reg(&ad, AD5940_REG_HSRTIACON,
+											rtia, 0x0F);
+									ad5940_release_mutex(&ad);
+								}
+							}
+						}
 					} else if (state == State::Calibrating) {
-						// Store in appopriate calibration slot (calibration resistor is 1k)
-						calibration_points[rtia][calFreqIndex].MagCal = 1000.0f
-								/ mag;
+						// Store in appropriate calibration slot (calibration resistor is 1k5)
+						float magCal = 1500.0f / mag;
+						LOG(Log_Frontend, LevelInfo,
+								"Calibration at gain %lu, frequency %luHz is: %f@%f",
+								ad5940_HSTIA_gain_to_value(rtia),
+								calibration_frequencies[calFreqIndex], magCal,
+								phase);
+						calibration_points[rtia][calFreqIndex].MagCal = magCal;
 						calibration_points[rtia][calFreqIndex].PhaseCal = phase;
+						// calculate percentage of calibration
+						uint8_t percentage = 100UL * (rtia
+								* ARRAY_SIZE(calibration_frequencies)
+								+ calFreqIndex)
+								/ (AD5940_HSRTIA_OPEN
+										* ARRAY_SIZE(calibration_frequencies));
+						if (cal_dialog) {
+							cal_dialog->SetPercentage(percentage);
+						}
 						// move on to next step
-						if (calFreqIndex < ARRAY_SIZE(calibration_frequencies)) {
+						if (calFreqIndex < ARRAY_SIZE(calibration_frequencies) - 1) {
 							calFreqIndex++;
 						} else {
 							calFreqIndex = 0;
@@ -315,6 +506,10 @@ static void frontend_task(void*) {
 							} else {
 								// Calibration routine complete
 								state = State::Stopped;
+								if (cal_dialog) {
+									delete cal_dialog;
+									Persistence::Save();
+								}
 								break;
 							}
 						}
@@ -322,12 +517,25 @@ static void frontend_task(void*) {
 								calibration_frequencies[calFreqIndex], rtia);
 					}
 
+					sumMagCurrent = 0.0f;
+					sumPhaseCurrent = 0.0f;
+					sumMagVoltage = 0.0f;
+					sumPhaseVoltage = 0.0f;
 					voltageMeasurement = false;
 					StartADC(ADCMeasurement::Current);
 				} else {
 					voltageMeasurement = true;
-					StartADC(ADCMeasurement::Voltage);
+					// Check ADC limits of the finished current measurement
+					ad5940_take_mutex(&ad);
+					currentMeasurementClipped = ad5940_read_reg(&ad, AD5940_REG_INTCFLAG0) & 0x30;
+					ad5940_release_mutex(&ad);
+					if (state == State::Calibrating) {
+						StartADC(ADCMeasurement::VoltageCalibrationResistor);
+					} else {
+						StartADC(ADCMeasurement::Voltage);
+					}
 				}
+
 				sampleCnt = 0;
 			}
 		}
@@ -340,6 +548,15 @@ bool Frontend::Init() {
 	// Release reset
 	AD5941_RESET_GPIO_Port->BSRR = AD5941_RESET_Pin;
 	Persistence::Add(calibration_points, sizeof(calibration_points));
+	Persistence::Add(&calibration_BiasVoltageOffset, sizeof(calibration_BiasVoltageOffset));
+	// Set calibration to default values in case of missing persistence data
+	for (uint8_t i = 0; i < AD5940_HSRTIA_OPEN; i++) {
+		for (uint8_t j = 0; j < ARRAY_SIZE(calibration_frequencies); j++) {
+			calibration_points[i][j].MagCal = 1.0f;
+			calibration_points[i][j].PhaseCal = 0.0f;
+		}
+	}
+	calibration_BiasVoltageOffset = 0;
 	ad.CSport = AD5941_CS_GPIO_Port;
 	ad.CSpin = AD5941_CS_Pin;
 	ad.spi = &hspi3;
@@ -362,13 +579,13 @@ bool Frontend::Init() {
 
 	// Set AD5941 to high power mode
 	ad5940_modify_reg(&ad, AD5940_REG_PMBW, 0x000D, 0x000F);
-//	// Set system clock divider to 2
-//	LOG(Log_Frontend, LevelDebug, "CLKCON0 before writing to it: 0x%04x", ad5940_read_reg(&ad, AD5940_REG_CLKCON0));
-//	// unlock clock con0
-//	ad5940_write_reg(&ad, AD5940_REG_CLKCON0KEY, 0xA815);
-//	ad5940_modify_reg(&ad, AD5940_REG_CLKCON0, 2, 0x001F);
-//	// Lock clock con0
-//	ad5940_write_reg(&ad, AD5940_REG_CLKCON0KEY, 0);
+	// Set system clock divider to 2
+	LOG(Log_Frontend, LevelDebug, "CLKCON0 before writing to it: 0x%04x", ad5940_read_reg(&ad, AD5940_REG_CLKCON0));
+	// unlock clock con0
+	ad5940_write_reg(&ad, AD5940_REG_CLKCON0KEY, 0xA815);
+	ad5940_modify_reg(&ad, AD5940_REG_CLKCON0, 2, 0x001F);
+	// Lock clock con0
+	ad5940_write_reg(&ad, AD5940_REG_CLKCON0KEY, 0);
 	LOG(Log_Frontend, LevelDebug, "CLKCON0 after writing to it: 0x%04x", ad5940_read_reg(&ad, AD5940_REG_CLKCON0));
 	// Enable external crystal oscillator
 	// unlock osccon0
@@ -384,9 +601,24 @@ bool Frontend::Init() {
 	}
 
 	// Switch system and ADC clock to external crystal
-//	ad5940_modify_reg(&ad, AD5940_REG_CLKSEL, 0x05, 0x000F);
+	ad5940_modify_reg(&ad, AD5940_REG_CLKSEL, 0x05, 0x000F);
 	// Enable 1.6MHz sample rate
 	ad5940_set_bits(&ad, AD5940_REG_ADCFILTERCON, 0x01);
+
+	/*
+	 * Setup clipping limits for ADC:
+	 * The min/max flag is set if an ADC sample gets too close to the ADC limits.
+	 * The hysteresis is set up so that the flag is never reset and thus preserving
+	 * even a single clipped ADC value.
+	 */
+	constexpr uint16_t ADC_headroom = 1024;
+	ad5940_write_reg(&ad, AD5940_REG_ADCMIN, HardwareLimits::ADCHeadroom);
+	ad5940_write_reg(&ad, AD5940_REG_ADCMINSM, UINT16_MAX - HardwareLimits::ADCHeadroom);
+	ad5940_write_reg(&ad, AD5940_REG_ADCMAX, UINT16_MAX - HardwareLimits::ADCHeadroom);
+	ad5940_write_reg(&ad, AD5940_REG_ADCMAXSMEN, UINT16_MAX - HardwareLimits::ADCHeadroom);
+	// enable min/max interrupts
+	ad5940_set_bits(&ad, AD5940_REG_INTCSEL0, 0x30);
+
 	ad5940_release_mutex(&ad);
 
 	// Configure TIA and excitation amplifier
@@ -396,7 +628,7 @@ bool Frontend::Init() {
 			AD5940_EXAMP_PSW_INT_FEEDBACK, AD5940_EXAMP_NSW_INT_FEEDBACK,
 			false);
 
-	ad5940_set_PGA_gain(&ad, AD5940_PGA_GAIN_4);
+	ad5940_set_PGA_gain(&ad, PGA_gain);
 
 	// Configure DFT
 	ad5940_dftconfig_t dft;
@@ -430,5 +662,11 @@ bool Frontend::Start(Settings s) {
 	Message msg;
 	msg.type = MessageType::MeasurementConfig;
 	msg.settings = s;
+	return xQueueSend(queueHandle, &msg, 0) == pdPASS;
+}
+
+bool Frontend::Calibrate() {
+	Message msg;
+	msg.type = MessageType::RunCalibration;
 	return xQueueSend(queueHandle, &msg, 0) == pdPASS;
 }

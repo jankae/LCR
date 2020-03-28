@@ -11,6 +11,7 @@ class Widget {
 	friend class Container;
 	friend class Window;
 	friend class Menu;
+	friend void guiThread(void);
 public:
 	enum class Type : uint8_t {
 		Button,
