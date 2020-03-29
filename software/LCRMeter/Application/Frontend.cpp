@@ -324,7 +324,6 @@ static void frontend_task(void*) {
 	ad5940_hsrtia_t rtia = AD5940_HSRTIA_1K;
 	bool currentMeasurementClipped = false;
 	uint32_t averagesBuffer;
-	bool clippedMeasurement = false;
 
 	// Calibration state variables
 	uint16_t calFreqIndex = 0;
@@ -459,25 +458,28 @@ static void frontend_task(void*) {
 					bool voltageMeasurementClipped = ad5940_read_reg(&ad, AD5940_REG_INTCFLAG0) & 0x30;
 					ad5940_release_mutex(&ad);
 
+					constexpr uint32_t ADC_max_value = 32768		// 16384 is the value according to datasheet, ADC actually reports values up to 32768
+														* 4;		// two additional bits due to DFT
+					float rangeU = sumMagVoltage * (1UL << 17) / ADC_max_value;
+					float rangeI = sumMagCurrent * (1UL << 17) / ADC_max_value;
+					// multiplication by 120 instead of 100 to have some headroom above displayed ADC ranges
+					result.usedRangeU = rangeU * 120;
+					result.usedRangeI = rangeI * 120;
+
 					// Check ranges for valid result
 					Frontend::ResultType type = Frontend::ResultType::Valid;
-					constexpr float minMag = 0.00005f;
-					if (sumMagCurrent < minMag && sumMagVoltage < minMag) {
+					constexpr float minRangeU = 0.00005f;
+					constexpr float minRangeI = 0.02f;
+					if (rangeI < minRangeI && rangeU < minRangeU) {
 						// No current flowing and no voltage measured -> no leads connected
 						type = Frontend::ResultType::OpenLeads;
-					} else if (sumMagCurrent < minMag || voltageMeasurementClipped) {
+					} else if (rangeI < minRangeI || voltageMeasurementClipped) {
 						// No current flowing, connected impedance too high
 						type = Frontend::ResultType::Overrange;
-					} else if (sumMagVoltage < minMag || currentMeasurementClipped) {
+					} else if (rangeU < minRangeU || currentMeasurementClipped) {
 						// No voltage measurable, impedance too low
 						type = Frontend::ResultType::Underrange;
 					}
-
-					constexpr uint32_t ADC_max_value = 32768		// 16384 is the value according to datasheet, ADC actually reports values up to 32768
-														* 4			// two additional bits due to DFT
-														* 0.75f;	// Safety factor to stay away from ADC limits
-					result.usedRangeU = sumMagVoltage * 100 * (1UL << 17) / ADC_max_value;
-					result.usedRangeI = sumMagCurrent * 100 * (1UL << 17) / ADC_max_value;
 
 					// Adjust current measurement by TIA gain (results in all calibration factors roughly equal to 1)
 					sumMagCurrent /= ad5940_HSTIA_gain_to_value(rtia);
@@ -524,6 +526,23 @@ static void frontend_task(void*) {
 						 */
 						result.RMS_I /= cal.MagCal;
 
+						// Calculate lowest and highest measurable impedances
+						float smallestCurrent = result.RMS_I * minRangeI / rangeI;
+						float smallestVoltage = result.RMS_U * minRangeU / rangeU;
+						float highestCurrent = result.RMS_I / rangeI;
+						float highestVoltage = (float) settings.excitationVoltage
+												* 0.000001		// Convert from uV to V
+												* M_SQRT1_2;	// Convert from peak to RMS
+						if (result.clippedI) {
+							result.LimitLow = smallestVoltage / highestCurrent;
+						} else {
+							result.LimitLow = smallestVoltage / result.RMS_I;
+						}
+						if (result.clippedU) {
+							result.LimitHigh = highestVoltage / smallestCurrent;
+						} else {
+							result.LimitHigh = result.RMS_U / smallestCurrent;
+						}
 
 						result.type = type;
 						result.clippedI = currentMeasurementClipped;
@@ -704,6 +723,9 @@ bool Frontend::Init() {
 
 	// bypass SINC3 filter
 	ad5940_set_bits(&ad, AD5940_REG_ADCFILTERCON, 1UL << 6);
+
+	// Set recommended DAC update rate
+	ad5940_modify_reg(&ad, AD5940_REG_HSDACCON, 0x000E, 0x01FE);
 
 	ad5940_release_mutex(&ad);
 

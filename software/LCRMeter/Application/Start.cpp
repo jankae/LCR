@@ -12,6 +12,7 @@
 #include "Persistence.hpp"
 #include "LCR.hpp"
 #include "Frontend.hpp"
+#include "Sound.h"
 
 extern ADC_HandleTypeDef hadc1;
 // global mutex controlling access to SPI1 (used for touch + SD card)
@@ -87,6 +88,8 @@ void Start() {
 		}
 		display_SetForeground(COLOR_WHITE);
 	}
+
+	Sound::Beep(2000, 100);
 
 	if (!passed) {
 		display_String(0, DISPLAY_HEIGHT - Font_Big.height - 1,

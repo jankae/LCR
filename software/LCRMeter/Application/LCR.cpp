@@ -199,11 +199,21 @@ static void drawResult(Widget &w, coords_t pos) {
 	case Frontend::ResultType::OpenLeads:
 		display_AutoCenterString("NO LEADS", SchematicTopLeft, SchematicBottomRight);
 		break;
-	case Frontend::ResultType::Overrange:
-		display_AutoCenterString("OPEN", SchematicTopLeft, SchematicBottomRight);
+	case Frontend::ResultType::Overrange: {
+		char val[22];
+		strcpy(val, "|Z| > ");
+		Unit::SIStringFromFloat(&val[strlen(val)], 7, lastMeasurement.frontend.LimitHigh);
+		strcat(val, "Ohm");
+		display_AutoCenterString(val, SchematicTopLeft, SchematicBottomRight);
+	}
 		break;
-	case Frontend::ResultType::Underrange:
-		display_AutoCenterString("SHORT", SchematicTopLeft, SchematicBottomRight);
+	case Frontend::ResultType::Underrange: {
+		char val[22];
+		strcpy(val, "|Z| < ");
+		Unit::SIStringFromFloat(&val[strlen(val)], 7, lastMeasurement.frontend.LimitLow);
+		strcat(val, "Ohm");
+		display_AutoCenterString(val, SchematicTopLeft, SchematicBottomRight);
+	}
 		break;
 	}
 

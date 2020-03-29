@@ -26,7 +26,7 @@ using Result = struct result {
 	// Indicates whether any sample in the current/voltage measurement exceeded the ADC range
 	bool clippedI, clippedU;
 	// Min/max measurable impedance in this range
-	float RangeMin, RangeMax;
+	float LimitLow, LimitHigh;
 	ResultType type;
 	Range range;
 	uint32_t frequency;
