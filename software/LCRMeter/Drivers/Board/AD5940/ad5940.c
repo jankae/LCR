@@ -944,7 +944,7 @@ ad5940_result_t ad5940_get_dft_result(ad5940_t *a, uint8_t avg, ad5940_dftresult
 		uint32_t start = HAL_GetTick();
 		while (!(ad5940_read_reg(a, AD5940_REG_INTCFLAG0) & 0x02)) {
 			portYIELD();
-			if (HAL_GetTick() - start > 50) {
+			if (HAL_GetTick() - start > 1000) {
 				LOG(Log_AD5940, LevelWarn, "Timed out waiting for DFT result");
 				ad5940_release_mutex(a);
 				return AD5940_RES_ERROR;

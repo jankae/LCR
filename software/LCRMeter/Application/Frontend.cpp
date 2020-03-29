@@ -10,6 +10,7 @@
 #include "Persistence.hpp"
 #include "GUI/Dialog/progress.hpp"
 #include "HardwareLimits.hpp"
+#include "gui.hpp"
 
 static ad5940_t ad;
 extern SPI_HandleTypeDef hspi3;
@@ -19,6 +20,7 @@ extern SPI_HandleTypeDef hspi3;
 static constexpr uint32_t referenceVoltage = 1100000;
 static Frontend::Callback callback;
 static void *cb_ctx;
+static ProgressBar *AcquisitionProgress = nullptr;
 
 static constexpr ad5940_pga_gain_t PGA_gain = AD5940_PGA_GAIN_4;
 
@@ -65,6 +67,39 @@ static float interpolate(float value, float scaleFromLow, float scaleFromHigh,
 	result = (value * rangeTo) / rangeFrom;
 	result += scaleToLow;
 	return result;
+}
+
+/*
+ * Sets the ADC averages depending on the selected frequency in order
+ * to cover at least a few waveform periods with the DFT
+ */
+static void SetADCAverages(uint32_t freq) {
+	uint32_t rawSamplesPerPeriod = HardwareLimits::ADCSampleRate / freq;
+	constexpr uint8_t MinPeriodsPerDFT = 10;
+	uint16_t avgRegVal = 0x0000;
+	if (HardwareLimits::DFTpoints / (rawSamplesPerPeriod / 2)
+			>= MinPeriodsPerDFT) {
+		// Averaging of 2 is enough
+		avgRegVal = 0x0000;
+		LOG(Log_Frontend, LevelDebug, "ADC averaging: 2");
+	} else if (HardwareLimits::DFTpoints / (rawSamplesPerPeriod / 4)
+			>= MinPeriodsPerDFT) {
+		// Averaging of 4 is enough
+		avgRegVal = 0x4000;
+		LOG(Log_Frontend, LevelDebug, "ADC averaging: 4");
+	} else if (HardwareLimits::DFTpoints / (rawSamplesPerPeriod / 8)
+			>= MinPeriodsPerDFT) {
+		// Averaging of 8 is enough
+		avgRegVal = 0x8000;
+		LOG(Log_Frontend, LevelDebug, "ADC averaging: 8");
+	} else {
+		// needs maximum averaging of 16
+		avgRegVal = 0xC000;
+		LOG(Log_Frontend, LevelDebug, "ADC averaging: 16");
+	}
+	ad5940_take_mutex(&ad);
+	ad5940_modify_reg(&ad, AD5940_REG_ADCFILTERCON, avgRegVal, 0xC000);
+	ad5940_release_mutex(&ad);
 }
 
 static Calibration GetCalibration(ad5940_hsrtia_t rtia, uint32_t freq) {
@@ -188,6 +223,7 @@ static void SetCalibrationMeasurement(uint32_t freq, ad5940_hsrtia_t rtia) {
 	wave.sine.offset = 0;
 	wave.sine.phaseoffset = 0;
 	ad5940_generate_waveform(&ad, &wave);
+	SetADCAverages(freq);
 }
 
 static uint32_t GetADCAverage(uint16_t samples) {
@@ -259,6 +295,15 @@ static void RunBiasVoltageCalibration() {
 	SetBias(0);
 }
 
+static void UpdateAcquisitionState(uint8_t percentage) {
+	if(AcquisitionProgress) {
+		AcquisitionProgress->setState(percentage);
+		GUIEvent_t ev;
+		ev.type = EVENT_NONE;
+		GUI::SendEvent(&ev);
+	}
+}
+
 static void frontend_task(void*) {
 	enum class State : uint8_t {
 		Stopped,
@@ -278,6 +323,8 @@ static void frontend_task(void*) {
 	float sumPhaseVoltage = 0.0f;
 	ad5940_hsrtia_t rtia = AD5940_HSRTIA_1K;
 	bool currentMeasurementClipped = false;
+	uint32_t averagesBuffer;
+	bool clippedMeasurement = false;
 
 	// Calibration state variables
 	uint16_t calFreqIndex = 0;
@@ -304,6 +351,7 @@ static void frontend_task(void*) {
 				sumMagVoltage = 0.0f;
 				sumPhaseVoltage = 0.0f;
 				voltageMeasurement = false;
+				averagesBuffer = settings.averages;
 				settings.averages = 50;
 
 				// Configure the frontend
@@ -336,13 +384,16 @@ static void frontend_task(void*) {
 				wave.sine.offset = 0;
 				wave.sine.phaseoffset = 0;
 				ad5940_generate_waveform(&ad, &wave);
+				SetADCAverages(settings.frequency);
 
 				StartADC(ADCMeasurement::Current);
+				UpdateAcquisitionState(0);
 
 				break;
 			}
 			if(msg.type != MessageType::RunCalibration && cal_dialog) {
 				delete cal_dialog;
+				cal_dialog = nullptr;
 			}
 		}
 		switch(state) {
@@ -358,11 +409,39 @@ static void frontend_task(void*) {
 //			ad5940_release_mutex(&ad);
 //			LOG(Log_Frontend, LevelDebug, "Raw ADC: %u", adc);
 			sampleCnt++;
+			// Each measurement (current/voltage takes 50 percent of the acquisition time)
+			uint8_t acquisitionPercentage = util_Map(sampleCnt, 0,
+					settings.averages + 1, 0, 50);
+			if (voltageMeasurement) {
+				acquisitionPercentage += 50;
+			}
+			UpdateAcquisitionState(acquisitionPercentage);
 			if (sampleCnt > 1) {
 				if (voltageMeasurement) {
 					sumMagVoltage += result.mag;
 					sumPhaseVoltage += result.phase;
 				} else {
+					if (state == State::Measuring
+							&& settings.range == Frontend::Range::AUTO) {
+						// check clipping and change range before averaging is complete -> faster range switching
+						ad5940_take_mutex(&ad);
+						currentMeasurementClipped = ad5940_read_reg(&ad,
+								AD5940_REG_INTCFLAG0) & 0x30;
+						ad5940_release_mutex(&ad);
+						if (currentMeasurementClipped) {
+							// reduce tia gain if possible
+							if (rtia != AD5940_HSRTIA_200) {
+								rtia = (ad5940_hsrtia_t) ((int) rtia - 1);
+								ad5940_take_mutex(&ad);
+								ad5940_modify_reg(&ad, AD5940_REG_HSRTIACON,
+										rtia, 0x0F);
+								ad5940_release_mutex(&ad);
+								// reset sample cnt and restart ADC (resets clipped bits)
+								sampleCnt = 0;
+								StartADC(ADCMeasurement::Current);
+							}
+						}
+					}
 					sumMagCurrent += result.mag;
 					sumPhaseCurrent += result.phase;
 				}
@@ -455,6 +534,7 @@ static void frontend_task(void*) {
 						if (callback) {
 							callback(cb_ctx, result);
 						}
+						UpdateAcquisitionState(0);
 						if (settings.range == Frontend::Range::AUTO) {
 							// Check if range switch is required
 							if (result.clippedI || result.usedRangeI > 95) {
@@ -508,8 +588,12 @@ static void frontend_task(void*) {
 								state = State::Stopped;
 								if (cal_dialog) {
 									delete cal_dialog;
+									cal_dialog = nullptr;
 									Persistence::Save();
 								}
+								// Start again with measurement
+								settings.averages = averagesBuffer;
+								Frontend::Start(settings);
 								break;
 							}
 						}
@@ -579,11 +663,11 @@ bool Frontend::Init() {
 
 	// Set AD5941 to high power mode
 	ad5940_modify_reg(&ad, AD5940_REG_PMBW, 0x000D, 0x000F);
-	// Set system clock divider to 2
 	LOG(Log_Frontend, LevelDebug, "CLKCON0 before writing to it: 0x%04x", ad5940_read_reg(&ad, AD5940_REG_CLKCON0));
 	// unlock clock con0
 	ad5940_write_reg(&ad, AD5940_REG_CLKCON0KEY, 0xA815);
-	ad5940_modify_reg(&ad, AD5940_REG_CLKCON0, 2, 0x001F);
+	// Set system clock and ADC control clock divider to 2
+	ad5940_modify_reg(&ad, AD5940_REG_CLKCON0, 0x0042, 0x03FF);
 	// Lock clock con0
 	ad5940_write_reg(&ad, AD5940_REG_CLKCON0KEY, 0);
 	LOG(Log_Frontend, LevelDebug, "CLKCON0 after writing to it: 0x%04x", ad5940_read_reg(&ad, AD5940_REG_CLKCON0));
@@ -603,7 +687,7 @@ bool Frontend::Init() {
 	// Switch system and ADC clock to external crystal
 	ad5940_modify_reg(&ad, AD5940_REG_CLKSEL, 0x05, 0x000F);
 	// Enable 1.6MHz sample rate
-	ad5940_set_bits(&ad, AD5940_REG_ADCFILTERCON, 0x01);
+	ad5940_clear_bits(&ad, AD5940_REG_ADCFILTERCON, 0x01);
 
 	/*
 	 * Setup clipping limits for ADC:
@@ -611,7 +695,6 @@ bool Frontend::Init() {
 	 * The hysteresis is set up so that the flag is never reset and thus preserving
 	 * even a single clipped ADC value.
 	 */
-	constexpr uint16_t ADC_headroom = 1024;
 	ad5940_write_reg(&ad, AD5940_REG_ADCMIN, HardwareLimits::ADCHeadroom);
 	ad5940_write_reg(&ad, AD5940_REG_ADCMINSM, UINT16_MAX - HardwareLimits::ADCHeadroom);
 	ad5940_write_reg(&ad, AD5940_REG_ADCMAX, UINT16_MAX - HardwareLimits::ADCHeadroom);
@@ -619,10 +702,13 @@ bool Frontend::Init() {
 	// enable min/max interrupts
 	ad5940_set_bits(&ad, AD5940_REG_INTCSEL0, 0x30);
 
+	// bypass SINC3 filter
+	ad5940_set_bits(&ad, AD5940_REG_ADCFILTERCON, 1UL << 6);
+
 	ad5940_release_mutex(&ad);
 
 	// Configure TIA and excitation amplifier
-	ad5940_set_HSTIA(&ad, AD5940_HSRTIA_200, 2, AD5940_HSTIA_VBIAS_1V1, true,
+	ad5940_set_HSTIA(&ad, AD5940_HSRTIA_200, 0, AD5940_HSTIA_VBIAS_1V1, true,
 			AD5940_HSTSW_RCAL1);
 	ad5940_set_excitation_amplifier(&ad, AD5940_EXAMP_DSW_RCAL0,
 			AD5940_EXAMP_PSW_INT_FEEDBACK, AD5940_EXAMP_NSW_INT_FEEDBACK,
@@ -633,8 +719,8 @@ bool Frontend::Init() {
 	// Configure DFT
 	ad5940_dftconfig_t dft;
 	dft.hanning = true;
-	dft.points = 16384;
-	dft.source = AD5940_DFTSRC_RAW;
+	dft.points = HardwareLimits::DFTpoints;
+	dft.source = AD5940_DFTSRC_AVG;
 	ad5940_set_dft(&ad, &dft);
 
 	queueHandle = xQueueGenericCreateStatic(msgQueueLen, sizeof(Message),
@@ -650,6 +736,10 @@ bool Frontend::Init() {
 void Frontend::SetCallback(Callback cb, void *ctx) {
 	callback = cb;
 	cb_ctx = ctx;
+}
+
+void Frontend::SetAcquisitionProgressBar(ProgressBar *p) {
+	AcquisitionProgress = p;
 }
 
 bool Frontend::Stop() {

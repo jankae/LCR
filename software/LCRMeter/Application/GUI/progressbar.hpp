@@ -8,7 +8,7 @@
 
 class ProgressBar : public Widget {
 public:
-	ProgressBar(coords_t size);
+	ProgressBar(coords_t size, color_t barColor = Bar);
 
 	void setState(uint8_t state);
 private:
@@ -21,6 +21,7 @@ private:
 	static constexpr color_t Background = COLOR_BG_DEFAULT;
 
     uint8_t state;
+    color_t barColor;
 };
 
 #endif

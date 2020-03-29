@@ -22,6 +22,7 @@
 
 #define COLOR_DARKGREEN		COLOR(0, 100, 0)
 #define COLOR_LIGHTGRAY		COLOR(180, 180, 180)
+#define COLOR_DARKGRAY		COLOR(50, 50, 50);
 
 #define COLOR_R(c)			((c&0xf800)>>8)
 #define COLOR_G(c)			((c&0x07E0)>>3)

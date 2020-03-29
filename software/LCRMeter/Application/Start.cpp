@@ -88,14 +88,18 @@ void Start() {
 		display_SetForeground(COLOR_WHITE);
 	}
 
-	display_String(0, DISPLAY_HEIGHT - Font_Big.height - 1,
-			"Press screen to continue");
-	{
-		coords_t dummy;
-		while (!touch_GetCoordinates(&dummy))
-			;
-		while (touch_GetCoordinates(&dummy))
-			;
+	if (!passed) {
+		display_String(0, DISPLAY_HEIGHT - Font_Big.height - 1,
+				"Press screen to continue");
+		{
+			coords_t dummy;
+			while (!touch_GetCoordinates(&dummy))
+				;
+			while (touch_GetCoordinates(&dummy))
+				;
+		}
+	} else {
+		vTaskDelay(1000);
 	}
 
 //	Loadcells::Setup(0x3F, MAX11254_RATE_CONT1_9_SINGLE50);

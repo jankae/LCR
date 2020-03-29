@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include "progressbar.hpp"
 
 namespace Frontend {
 
@@ -43,6 +44,7 @@ using Callback = void(*)(void*ctx, Result);
 
 bool Init();
 void SetCallback(Callback cb, void *ctx=nullptr);
+void SetAcquisitionProgressBar(ProgressBar *p);
 bool Stop();
 bool Start(Settings s);
 bool Calibrate();

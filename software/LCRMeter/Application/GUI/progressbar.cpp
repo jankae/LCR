@@ -1,7 +1,8 @@
 #include "progressbar.hpp"
 
-ProgressBar::ProgressBar(coords_t size) {
+ProgressBar::ProgressBar(coords_t size, color_t barColor) {
 	this->size = size;
+	this->barColor = barColor;
 	state = 0;
 }
 
@@ -27,7 +28,7 @@ void ProgressBar::draw(coords_t offset) {
     uint16_t end = util_Map(state, 0, 100, 1, size.x - 2);
 
     /* draw the bar */
-    display_SetForeground(Bar);
+    display_SetForeground(barColor);
     display_RectangleFull(upperLeft.x + 1, upperLeft.y + 1, upperLeft.x + end, lowerRight.y - 1);
 
     /* draw empty space right of the bar (in case of receding progress) */

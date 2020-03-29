@@ -5,6 +5,7 @@
 #include "Frontend.hpp"
 #include <math.h>
 #include "log.h"
+#include "touch.h"
 
 #define Log_LCR (LevelDebug|LevelInfo|LevelWarn|LevelError|LevelCrit)
 
@@ -60,7 +61,7 @@ enum class Component : uint8_t {
 
 static void drawComponent(Component c, coords_t startpos, uint16_t len) {
 	uint16_t componentSize = 0;
-	display_SetForeground(COLOR_BLACK);
+	display_SetForeground(LCR::SchematicColor);
 	display_SetBackground(COLOR_BG_DEFAULT);
 	// Draw component
 	switch(c) {
@@ -129,7 +130,8 @@ static void drawResult(Widget &w, coords_t pos) {
 		char val[22];
 		Unit::SIStringFromFloat(val, 7, lastMeasurement.real);
 		strcat(val, "Ohm");
-		display_AutoCenterString(val, pos, COORDS(pos.x+w.getSize().x, pos.y+16));
+		display_SetForeground(LCR::MeasurmentValueColor);
+		display_AutoCenterString(val, pos + COORDS(0, 3), COORDS(pos.x+w.getSize().x, pos.y+19));
 		if (ImpType == ImpedanceType::CAPACITANCE) {
 			Unit::SIStringFromFloat(val, 7, lastMeasurement.C.capacitance);
 			strcat(val, "F Q:");
@@ -220,7 +222,7 @@ static void drawResult(Widget &w, coords_t pos) {
 			0, 100);
 	uint16_t x_range = util_Map(used_range, 0, 100, xPadLeft + 1,
 			ADCRangeBottomRight.x - xSpaceText - 1);
-	display_SetForeground(lastMeasurement.frontend.usedRangeU <= 100 ? COLOR_BLUE : COLOR_RED);
+	display_SetForeground(lastMeasurement.frontend.usedRangeU <= 100 ? LCR::BarColor : COLOR_RED);
 	display_RectangleFull(xPadLeft + 1, ADCRangeTopLeft.y + 1, x_range,
 			ADCRangeTopLeft.y + 7);
 	display_SetForeground(COLOR_BG_DEFAULT);
@@ -246,7 +248,7 @@ static void drawResult(Widget &w, coords_t pos) {
 	used_range = constrain_int16_t(lastMeasurement.frontend.usedRangeI, 0, 100);
 	x_range = util_Map(used_range, 0, 100, xPadLeft + 1,
 			ADCRangeBottomRight.x - xSpaceText - 1);
-	display_SetForeground(lastMeasurement.frontend.usedRangeI <= 100 ? COLOR_BLUE : COLOR_RED);
+	display_SetForeground(lastMeasurement.frontend.usedRangeI <= 100 ? LCR::BarColor : COLOR_RED);
 	display_RectangleFull(xPadLeft + 1, ADCRangeTopLeft.y + 11, x_range,
 			ADCRangeTopLeft.y + 17);
 	display_SetForeground(COLOR_BG_DEFAULT);
@@ -345,21 +347,21 @@ bool LCR::Init() {
 	mainmenu->AddEntry(
 			new MenuValue<int32_t>("Averages", &measurementAverages, Unit::None,
 					callback_setTrueNotify, &measurementUpdated, 1, 100));
-	auto advancedMenu = new Menu("Advanced\nSettings", mainmenu->getSize());
+//	auto advancedMenu = new Menu("Advanced\nSettings", mainmenu->getSize());
 	static constexpr char *mode_items[] = {
 			"AUTO", "SERIES", "PARALLEL", nullptr
 	};
-	advancedMenu->AddEntry(
+	mainmenu->AddEntry(
 			new MenuChooser("Model", mode_items, (uint8_t*) &displayMode,
 					nullptr, nullptr, false));
-	advancedMenu->AddEntry(
+	mainmenu->AddEntry(
 			new MenuValue<int32_t>("Excitation", &excitationVoltage,
 					Unit::Voltage, callback_setTrueNotify, &measurementUpdated,
 					HardwareLimits::MinExcitationVoltage,
 					HardwareLimits::MaxExcitationVoltage));
-	advancedMenu->AddEntry(new MenuBack());
+//	advancedMenu->AddEntry(new MenuBack());
 
-	mainmenu->AddEntry(advancedMenu);
+//	mainmenu->AddEntry(advancedMenu);
 
 	Menu *systemmenu = new Menu("System", mainmenu->getSize());
 	mainmenu->AddEntry(systemmenu);
@@ -370,16 +372,22 @@ bool LCR::Init() {
 			}
 		}, 0);
 	}, nullptr));
+	systemmenu->AddEntry(new MenuAction("Calibrate\nTouch", [](void*, Widget*){
+		touch_Calibrate();
+	}, nullptr));
 	systemmenu->AddEntry(new MenuBack());
 	c->attach(mainmenu, COORDS(DISPLAY_WIDTH - mainmenu->getSize().x, 0));
 	cResult = new Custom(
-			SIZE(DISPLAY_WIDTH - mainmenu->getSize().x, DISPLAY_HEIGHT),
+			SIZE(DISPLAY_WIDTH - mainmenu->getSize().x, DISPLAY_HEIGHT - 10),
 			drawResult, nullptr);
 	c->attach(cResult, COORDS(0, 0));
+	auto p = new ProgressBar(COORDS(DISPLAY_WIDTH - mainmenu->getSize().x - 10, 9), LCR::BarColor);
+	c->attach(p, COORDS(5, DISPLAY_HEIGHT - 10));
 	c->requestRedrawFull();
 	GUI::Init(*c);
 
 	Frontend::SetCallback(measurementCallback);
+	Frontend::SetAcquisitionProgressBar(p);
 	return true;
 }
 
