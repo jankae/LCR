@@ -6,6 +6,10 @@
 #include <math.h>
 #include "log.h"
 #include "touch.h"
+#include <complex>
+#include "Sweep.hpp"
+
+using namespace std;
 
 #define Log_LCR (LevelDebug|LevelInfo|LevelWarn|LevelError|LevelCrit)
 
@@ -21,37 +25,13 @@ static TaskHandle_t handle = nullptr;
 // GUI elements
 Custom *cResult;
 
-enum class DisplayMode : uint8_t {
-			AUTO = 0x00,
-			SERIES = 0x01,
-			PARALLEL = 0x02,
-};
+static bool configureSweep = false;
+static Sweep *sweep;
+static bool sweepActive = false;
 
-static DisplayMode displayMode = DisplayMode::AUTO;
+static LCR::DisplayMode displayMode = LCR::DisplayMode::AUTO;
 
-enum class ImpedanceType : uint8_t {
-	CAPACITANCE = 0x00,
-	INDUCTANCE = 0x01,
-};
-
-using Result = struct {
-	Frontend::Result frontend;
-	float real, imag;
-	DisplayMode mode;
-	ImpedanceType type;
-	union {
-		struct {
-			float capacitance;
-		} C;
-		struct {
-			float inductance;
-		} L;
-	};
-	// for both Ls and Cs
-	float qualityFactor;
-};
-
-static Result lastMeasurement;
+static LCR::Result lastMeasurement;
 
 enum class Component : uint8_t {
 	RESISTOR,
@@ -102,8 +82,12 @@ static void drawComponent(Component c, coords_t startpos, uint16_t len) {
 }
 
 static void drawResult(Widget &w, coords_t pos) {
-	static DisplayMode mode = DisplayMode::AUTO;
-	static ImpedanceType ImpType = ImpedanceType::CAPACITANCE;
+	if (sweepActive) {
+		sweep->Display(pos, w.getSize());
+		return;
+	}
+	static LCR::DisplayMode mode = LCR::DisplayMode::AUTO;
+	static LCR::ImpedanceType ImpType = LCR::ImpedanceType::CAPACITANCE;
 	static Frontend::ResultType ResType = Frontend::ResultType::OpenLeads;
 
 	coords_t SchematicTopLeft = COORDS(0, 0) + pos;
@@ -128,11 +112,11 @@ static void drawResult(Widget &w, coords_t pos) {
 	case Frontend::ResultType::Valid: {
 		// Show component values
 		char val[22];
-		Unit::SIStringFromFloat(val, 7, lastMeasurement.real);
+		Unit::SIStringFromFloat(val, 7, real(lastMeasurement.Z));
 		strcat(val, "Ohm");
 		display_SetForeground(LCR::MeasurmentValueColor);
 		display_AutoCenterString(val, pos + COORDS(0, 3), COORDS(pos.x+w.getSize().x, pos.y+19));
-		if (ImpType == ImpedanceType::CAPACITANCE) {
+		if (ImpType == LCR::ImpedanceType::CAPACITANCE) {
 			Unit::SIStringFromFloat(val, 7, lastMeasurement.C.capacitance);
 			strcat(val, "F Q:");
 		} else {
@@ -147,12 +131,12 @@ static void drawResult(Widget &w, coords_t pos) {
 		// draw schematic
 		constexpr uint16_t padLeftRight = 10;
 		Component c;
-		if (ImpType == ImpedanceType::CAPACITANCE) {
+		if (ImpType == LCR::ImpedanceType::CAPACITANCE) {
 			c = Component::CAPACITOR;
 		} else {
 			c = Component::INDUCTOR;
 		}
-		if (mode == DisplayMode::SERIES) {
+		if (mode == LCR::DisplayMode::SERIES) {
 			// draw components
 			drawComponent(Component::RESISTOR,
 					COORDS(SchematicTopLeft.x + padLeftRight,
@@ -276,53 +260,53 @@ static void drawResult(Widget &w, coords_t pos) {
 			ADCRangeTopLeft.y + 11, val);
 }
 
-static Result CalculateComponentValues(Frontend::Result f) {
-	Result res;
+static LCR::Result CalculateComponentValues(Frontend::Result f) {
+	LCR::Result res;
 	res.frontend = f;
-	if (f.Phase >= 0.0f) {
-		res.type = ImpedanceType::INDUCTANCE;
+	float phase = 180 * arg(res.frontend.Z) / M_PI;
+	if (phase >= 0.0f) {
+		res.type = LCR::ImpedanceType::INDUCTANCE;
 	} else {
-		res.type = ImpedanceType::CAPACITANCE;
+		res.type = LCR::ImpedanceType::CAPACITANCE;
 	}
-	if (displayMode == DisplayMode::AUTO) {
+	if (displayMode == LCR::DisplayMode::AUTO) {
 		// Change mode depending on result
-		if (res.type == ImpedanceType::INDUCTANCE) {
-			if (f.Phase <= 45.0f) {
+		if (res.type == LCR::ImpedanceType::INDUCTANCE) {
+			if (phase <= 45.0f) {
 				// resistance dominates
-				res.mode = DisplayMode::SERIES;
+				res.mode = LCR::DisplayMode::SERIES;
 			} else {
 				// inductance dominates
-				res.mode = DisplayMode::PARALLEL;
+				res.mode = LCR::DisplayMode::PARALLEL;
 			}
 		} else {
-			if (f.Phase >= -45.0f) {
+			if (phase >= -45.0f) {
 				// resistance dominates
-				res.mode = DisplayMode::PARALLEL;
+				res.mode = LCR::DisplayMode::PARALLEL;
 			} else {
 				// inductance dominates
-				res.mode = DisplayMode::SERIES;
+				res.mode = LCR::DisplayMode::SERIES;
 			}
 		}
 	} else {
 		res.mode = displayMode;
 	}
-	if(res.mode == DisplayMode::SERIES) {
+	if(res.mode == LCR::DisplayMode::SERIES) {
 		// Assuming series connection of components
-		res.real = f.I;
-		res.imag = f.Q;
+		res.Z = res.frontend.Z;
 	} else {
 		// Assuming parallel connection of components
-		res.real = (f.I * f.I + f.Q * f.Q) / f.I;
-		res.imag = (f.I * f.I + f.Q * f.Q) / f.Q;
+		res.Z = complex<float>(abs(res.frontend.Z) / real(res.frontend.Z),
+				abs(res.frontend.Z) / imag(res.frontend.Z));
 	}
-	if(res.type == ImpedanceType::CAPACITANCE) {
+	if(res.type == LCR::ImpedanceType::CAPACITANCE) {
 		// Calculate capacitor values
-		res.C.capacitance = -1.0f / (2 * M_PI * f.frequency * res.imag);
-		res.qualityFactor = -f.Q / f.I;
+		res.C.capacitance = -1.0f / (2 * M_PI * f.frequency * imag(res.Z));
+		res.qualityFactor = -imag(f.Z) / real(f.Z);
 	} else {
 		// Calculate inductor value
-		res.L.inductance = res.imag / (2 * M_PI * f.frequency);
-		res.qualityFactor = f.Q / f.I;
+		res.L.inductance = imag(res.Z) / (2 * M_PI * f.frequency);
+		res.qualityFactor = imag(f.Z) / real(f.Z);
 	}
 	return res;
 }
@@ -358,9 +342,13 @@ bool LCR::Init() {
 			new MenuValue<int32_t>("Averages", &measurementAverages, Unit::None,
 					callback_setTrueNotify, &measurementUpdated, 1, 100));
 //	auto advancedMenu = new Menu("Advanced\nSettings", mainmenu->getSize());
+
+	mainmenu->AddEntry(new MenuAction("Sweep", callback_setTrueNotify, &configureSweep));
+
 	static constexpr char *mode_items[] = {
 			"AUTO", "SERIES", "PARALLEL", nullptr
 	};
+
 	mainmenu->AddEntry(
 			new MenuChooser("Model", mode_items, (uint8_t*) &displayMode,
 					nullptr, nullptr, false));
@@ -425,10 +413,38 @@ void LCR::Run() {
 			lastMeasurement = CalculateComponentValues(measurementResult);
 			cResult->requestRedraw();
 			newMeasurement = false;
+
+			if (sweepActive) {
+				sweep->AddResult(lastMeasurement);
+				if (!sweep->Done()) {
+					Frontend::Start(sweep->GetAcquisitionSettings());
+				}
+			}
+
 			// trigger GUI task to redraw the result
 			GUIEvent_t ev;
 			ev.type = EVENT_NONE;
 			GUI::SendEvent(&ev);
+		}
+		if(configureSweep) {
+			configureSweep = false;
+			Sweep *new_sweep = nullptr;
+			if (sweep) {
+				auto c = sweep->GetConfig();
+				new_sweep = Sweep::Create(c);
+			} else {
+				new_sweep = Sweep::Create();
+			}
+			if (new_sweep) {
+				// Sweep created with new settings, delete old sweep data
+				if(sweep) {
+					delete sweep;
+				}
+				sweep = new_sweep;
+				sweep->Start();
+				sweepActive = true;
+				Frontend::Start(sweep->GetAcquisitionSettings());
+			}
 		}
 	}
 }

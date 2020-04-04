@@ -74,7 +74,7 @@ void Widget::draw(Widget *w, coords_t pos) {
 		/* clear redraw request */
 		w->redraw = false;
 	}
-	if (w->redrawChild) {
+	if (w->visible && w->redrawChild) {
 		/* draw children of this widget */
 		w->drawChildren(pos);
 		/* clear redraw request */

@@ -39,8 +39,6 @@ bool StringInput(const char *title, char *result, uint8_t maxLength,
 
 Result StringInputBlock(const char *title, char *result, uint8_t maxLength);
 
-Result UnitInput(const char *title, int32_t *result, uint8_t maxLength, const Unit::unit *unit[]);
-
 }
 
 #endif /* DIALOG_H_ */

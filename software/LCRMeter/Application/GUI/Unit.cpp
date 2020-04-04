@@ -87,6 +87,13 @@ const coords_t operator+(coords_t const& lhs, coords_t const& rhs) {
 	return ret;
 }
 
+const coords_t operator-(coords_t const& lhs, coords_t const& rhs) {
+	coords_t ret = lhs;
+	ret.x -= rhs.x;
+	ret.y -= rhs.y;
+	return ret;
+}
+
 uint32_t Unit::LeastDigitValueFromString(const char *s,
 		const Unit::unit *unit[]) {
 	uint32_t dotdivisor = 0;
@@ -200,54 +207,42 @@ void Unit::StringFromValue(char *to, uint8_t len, int32_t val,
 	}
 }
 bool Unit::SIStringFromFloat(char* to, uint8_t len, float val, char smallest_prefix) {
-	if (len < 7) {
-		// need at least 7 characters (sign + 4 digits + decimal point and prefix)
+	if (len < 5) {
+		// need at least 5 characters (sign + 3 digits and prefix)
 		return false;
 	}
-	using Prefix = struct {
-		char name;
-		float factor;
-	};
-	static constexpr Prefix prefixes[] = {
-			{'f', 1E-15f},
-			{'p', 1E-12f},
-			{'n', 1E-9f},
-			{'u', 1E-6f},
-			{'m', 1E-3f},
-			{' ', 1E-0f},
-			{'k', 1E+3f},
-			{'M', 1E+6f},
-			{'G', 1E+9f},
-			{'T', 1E+12f},
-			{'P', 1E+15f},
-	};
+	uint8_t prefix_index = 0;
+	while (SI_prefixes[prefix_index].name != smallest_prefix) {
+		prefix_index++;
+		if (prefix_index > ARRAY_SIZE(SI_prefixes)) {
+			// Requested smallest prefix not available
+			return false;
+		}
+	}
+	while (abs(val) >= SI_prefixes[prefix_index].factor * 1000) {
+		prefix_index++;
+		if (prefix_index > ARRAY_SIZE(SI_prefixes)) {
+			// Value is too high to be encoded
+			return false;
+		}
+	}
+	int16_t preDot = abs(val) / SI_prefixes[prefix_index].factor;
+	float postDot = abs(val) / SI_prefixes[prefix_index].factor - preDot;
+	int8_t postDotLen = len - 1 	// sign
+			- 1 					// decimal point
+			- 1 					// prefix
+			- 1;					// at least one digit before decimal point
+	if(postDotLen == 0) {
+		// no room left for characters after the dot but the dot could still fit
+		// -> additional space at front to remove dot
+		*to++ = ' ';
+	}
 	if(val < 0) {
 		*to++ = '-';
 		val = -val;
 	} else {
 		*to++ = ' ';
 	}
-	uint8_t prefix_index = 0;
-	while (prefixes[prefix_index].name != smallest_prefix) {
-		prefix_index++;
-		if (prefix_index > ARRAY_SIZE(prefixes)) {
-			// Requested smallest prefix not available
-			return false;
-		}
-	}
-	while (abs(val) >= prefixes[prefix_index].factor * 1000) {
-		prefix_index++;
-		if (prefix_index > ARRAY_SIZE(prefixes)) {
-			// Value is too high to be encoded
-			return false;
-		}
-	}
-	int16_t preDot = val / prefixes[prefix_index].factor;
-	float postDot = val / prefixes[prefix_index].factor - preDot;
-	uint8_t postDotLen = len - 1 	// sign
-			- 1 					// decimal point
-			- 1 					// prefix
-			- 1;					// at least one digit before decimal point
 	if (preDot >= 100) {
 		*to++ = preDot / 100 + '0';
 		postDotLen--;
@@ -257,7 +252,9 @@ bool Unit::SIStringFromFloat(char* to, uint8_t len, float val, char smallest_pre
 		postDotLen--;
 	}
 	*to++ = (preDot%10) + '0';
-	*to++ = '.';
+	if (postDotLen > 0) {
+		*to++ = '.';
+	}
 	while (postDotLen > 0) {
 		// remove part before decimal point
 		postDot -= (int) postDot;
@@ -265,7 +262,7 @@ bool Unit::SIStringFromFloat(char* to, uint8_t len, float val, char smallest_pre
 		*to++ = (int) postDot + '0';
 		postDotLen--;
 	}
-	*to++ = prefixes[prefix_index].name;
+	*to++ = SI_prefixes[prefix_index].name;
 	*to = 0;
 	return true;
 }

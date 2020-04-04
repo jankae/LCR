@@ -11,6 +11,7 @@
 #define SIZE(v1, v2)	COORDS(v1, v2)
 
 const coords_t operator+(coords_t const& lhs, coords_t const& rhs);
+const coords_t operator-(coords_t const& lhs, coords_t const& rhs);
 
 namespace Unit {
 
@@ -32,6 +33,25 @@ uint32_t LeastDigitValueFromString(const char *s,
 
 void StringFromValue(char *to, uint8_t len, int32_t val,
 		const unit *unit[]);
+
+using SIPrefix = struct {
+	char name;
+	float factor;
+};
+static constexpr SIPrefix SI_prefixes[] = {
+		{'f', 1E-15f},
+		{'p', 1E-12f},
+		{'n', 1E-9f},
+		{'u', 1E-6f},
+		{'m', 1E-3f},
+		{' ', 1E-0f},
+		{'k', 1E+3f},
+		{'M', 1E+6f},
+		{'G', 1E+9f},
+		{'T', 1E+12f},
+		{'P', 1E+15f},
+};
+
 bool SIStringFromFloat(char* to, uint8_t len, float val, char smallest_prefix = 'f');
 
 uint8_t ValueFromString(int32_t *value, char *s, const unit *unit[]);

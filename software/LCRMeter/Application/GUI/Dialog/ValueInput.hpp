@@ -16,8 +16,8 @@ template <typename T>
 class ValueInput {
 public:
 	using Callback = void (*)(void *ptr, bool OK);
-	ValueInput(const char *title, T *value, const Unit::unit *unit[],
-			Callback cb, void *ptr, char firstChar = 0) {
+	ValueInput(const char *title, T *value, const Unit::unit *unit[] = Unit::None,
+			Callback cb = nullptr, void *ptr = nullptr, char firstChar = 0) {
 		LOG(Log_GUI, LevelInfo, "Creating value dialog, free heap: %lu",
 				xPortGetFreeHeapSize());
 		this->cb = cb;
@@ -99,20 +99,9 @@ public:
 			c->attach(dot,
 					COORDS(fieldOffsetX + 3 * fieldIncX,
 							fieldOffsetY + 2 * fieldIncY));
-			uint16_t yOffset = fieldOffsetY;
-			while (*unit) {
-				const char *name = (*unit)->name;
-				if (unit == Unit::None/* || unit == Unit::Fixed3*/) {
-					name = "Enter";
-				}
-				auto button = new Button(name, Font_Big,
-						pmf_cast<void (*)(void*, Widget *w), ValueInput,
-								&ValueInput::UnitPressed>::cfn, this,
-						COORDS(fieldSizeX + fieldIncX, fieldSizeY));
-				c->attach(button, COORDS(fieldOffsetX + 4 * fieldIncX, yOffset));
-				yOffset += fieldIncY;
-				unit++;
-			}
+			CreateUnitButtons(c,
+					COORDS(fieldOffsetX + 4 * fieldIncX, fieldOffsetY),
+					fieldIncX, fieldIncY, fieldSizeX, fieldSizeY);
 		}
 		auto backspace = new Button("BACKSPACE", Font_Big,
 				pmf_cast<void (*)(void*, Widget *w), ValueInput,
@@ -150,6 +139,23 @@ public:
 		delete w;
 	}
 private:
+	void CreateUnitButtons(Container *c, coords_t topLeft, uint16_t incX,
+			uint16_t incY, uint16_t sizeX, uint16_t sizeY) {
+		auto unit = this->unit;
+		while (*unit) {
+			const char *name = (*unit)->name;
+			if (unit == Unit::None/* || unit == Unit::Fixed3*/) {
+				name = "Enter";
+			}
+			auto button = new Button(name, Font_Big,
+					pmf_cast<void (*)(void*, Widget *w), ValueInput,
+							&ValueInput::UnitPressed>::cfn, this,
+					SIZE(sizeX + incX, sizeY));
+			c->attach(button, topLeft);
+			topLeft.y += incY;
+			unit++;
+		}
+	}
 	void UnitPressed(Widget *w) {
 		if (unit == Unit::Hex || unit == Unit::None) {
 			*value = strtol(string, nullptr, 0);
@@ -237,3 +243,7 @@ private:
 	char string[maxInputLength + 1];
 	uint8_t inputIndex;
 };
+
+template <> void ValueInput<float>::CreateUnitButtons(Container *c, coords_t topLeft, uint16_t incX,
+		uint16_t incY, uint16_t sizeX, uint16_t sizeY);
+template <> void ValueInput<float>::UnitPressed(Widget *w);

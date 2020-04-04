@@ -39,6 +39,16 @@ int32_t util_Map(int32_t value, int32_t scaleFromLow, int32_t scaleFromHigh,
 	result += scaleToLow;
 	return result;
 }
+float util_MapF(float value, float scaleFromLow, float scaleFromHigh,
+		float scaleToLow, float scaleToHigh) {
+	float result;
+	value -= scaleFromLow;
+	float rangeFrom = scaleFromHigh - scaleFromLow;
+	float rangeTo = scaleToHigh - scaleToLow;
+	result = value * rangeTo / rangeFrom;
+	result += scaleToLow;
+	return result;
+}
 
 #define CRC32_POLYGON 0xEDB88320
 

@@ -89,7 +89,7 @@ void Start() {
 		display_SetForeground(COLOR_WHITE);
 	}
 
-	Sound::Beep(2000, 100);
+	Sound::Beep(2000, 10);
 
 	if (!passed) {
 		display_String(0, DISPLAY_HEIGHT - Font_Big.height - 1,

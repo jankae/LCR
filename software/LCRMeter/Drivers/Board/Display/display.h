@@ -36,7 +36,9 @@ void display_RectangleFull(int16_t x0, int16_t y0, int16_t x1, int16_t y1);
 void display_Circle(int16_t x0, int16_t y0, uint16_t radius);
 void display_CircleFull(int16_t x0, int16_t y0, uint16_t radius);
 void display_Char(int16_t x, int16_t y, uint8_t c);
+void display_CharRotated(int16_t x, int16_t y, uint8_t c);
 void display_String(int16_t x, int16_t y, const char *s);
+void display_StringRotated(int16_t x, int16_t y, const char *s);
 void display_AutoCenterString(const char *s, coords_t upperLeft,
 		coords_t lowerRight);
 void display_Image(int16_t x, int16_t y, const Image_t *im);

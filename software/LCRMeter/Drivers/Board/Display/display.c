@@ -430,11 +430,63 @@ void display_Char(int16_t x, int16_t y, uint8_t c) {
 	}
 }
 
+void display_CharRotated(int16_t x, int16_t y, uint8_t c) {
+	if(x > active.maxX || y > active.maxY || x + font.height < active.minX || y + font.width < active.minY) {
+		/* Character completely out of active area, skip */
+		return;
+	}
+	uint16_t skipLeft = 0, skipRight = 0, skipTop = 0, skipBottom = 0;
+	if (x < active.minX)
+		skipLeft = active.minX - x;
+	if (y < active.minY)
+		skipTop = active.minY - y;
+	if (x + font.height > active.maxX + 1)
+		skipRight = x + font.height - active.maxX - 1;
+	if (y + font.width > active.maxY + 1)
+		skipBottom = y + font.width - active.maxY - 1;
+
+	setXY(x + skipLeft, y + skipTop, x + font.height - 1 - skipRight, y + font.width - 1 - skipBottom);
+	/* number of bytes in font per row */
+	uint8_t yInc = (font.width - 1) / 8 + 1;
+	const uint8_t *charIndex = font.data + c * yInc * font.height;
+	uint8_t i, j;
+	int8_t offset_i = 1 - yInc;
+	uint8_t bitMask = 0x01;
+	for (i = skipTop; i < font.width - skipBottom; i++) {
+		for (j = 0; j < font.height - skipRight; j++) {
+			if (j >= skipLeft) {
+				uint16_t color;
+				uint8_t offset = (j + 1) * yInc - 1;
+				if (charIndex[offset + offset_i] & bitMask) {
+					color = foreground;
+				} else {
+					color = background;
+				}
+				writeData(color);
+			}
+		}
+		bitMask <<= 1;
+		if (!bitMask) {
+			bitMask = 0x01;
+			offset_i++;
+		}
+	}
+}
+
 void display_String(int16_t x, int16_t y, const char *s) {
 	while (*s) {
 		display_Char(x, y, *s++);
 		x += font.width;
 		if (x > active.maxX)
+			break;
+	}
+}
+
+void display_StringRotated(int16_t x, int16_t y, const char *s) {
+	while (*s) {
+		display_CharRotated(x, y - font.width, *s++);
+		y -= font.width;
+		if (y < active.minY)
 			break;
 	}
 }

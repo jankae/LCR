@@ -499,16 +499,15 @@ static void frontend_task(void*) {
 						} else if (phase <= -M_PI) {
 							phase += 2 * M_PI;
 						}
-						result.Magnitude = mag;
-						// convert phase to degrees
-						result.Phase = phase * 180.0 / M_PI;
+//						result.Magnitude = mag;
+//						// convert phase to degrees
+//						result.Phase = phase * 180.0 / M_PI;
 						/*
 						 * Reconstruct I/Q values from magnitude and phase, making it easier to calculate
 						 * component values later on. Original I/Q is not valid anymore because the
 						 * calibration works in the polar domain
 						 */
-						result.I = mag * cos(phase);
-						result.Q = mag * sin(phase);
+						result.Z = std::complex<float>(mag * cos(phase), mag * sin(phase));
 						result.frequency = settings.frequency;
 
 						constexpr float mag_to_RMS = (1UL << 17)		// compensate division in ad5940_get_dft_result

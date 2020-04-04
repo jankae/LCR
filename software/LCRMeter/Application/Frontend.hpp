@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include "progressbar.hpp"
+#include <complex>
 
 namespace Frontend {
 
@@ -16,9 +17,7 @@ enum class ResultType : uint8_t {
 };
 
 using Result = struct result {
-	float I, Q;
-	float Magnitude;
-	float Phase;
+	std::complex<float> Z;
 	// RMS values of current and voltage
 	float RMS_I, RMS_U;
 	// percentage of used ADC range according to DFT result (will not be accurate in case of clipping)
