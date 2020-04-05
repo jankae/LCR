@@ -7,6 +7,8 @@ namespace Frontend {
 
 enum class Range : uint8_t {
 	AUTO,
+	Lowest,
+	Highest,
 };
 
 enum class ResultType : uint8_t {

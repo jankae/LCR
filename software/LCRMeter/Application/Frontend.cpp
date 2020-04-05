@@ -369,6 +369,12 @@ static void frontend_task(void*) {
 				sumPhaseVoltage = 0.0f;
 				voltageMeasurement = false;
 
+				if (settings.range == Frontend::Range::Lowest) {
+					rtia = AD5940_HSRTIA_200;
+				} else if (settings.range == Frontend::Range::Highest) {
+					rtia = AD5940_HSRTIA_160K;
+				}
+
 				// Configure the frontend
 				SetSwitchesForMeasurement();
 				SetBias(settings.biasVoltage);
