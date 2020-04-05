@@ -55,6 +55,9 @@ Widget::~Widget() {
 }
 
 void Widget::draw(Widget *w, coords_t pos) {
+	if (!w->visible) {
+		return;
+	}
 	/* calculate new position */
 	pos.x += w->position.x;
 	pos.y += w->position.y;
@@ -64,8 +67,6 @@ void Widget::draw(Widget *w, coords_t pos) {
 			/* widget needs a full redraw, clear widget area */
 			display_RectangleFull(pos.x, pos.y, pos.x + w->size.x - 1,
 					pos.y + w->size.y - 1);
-			/* clear flag */
-			w->redrawClear = false;
 		}
 		/* draw widget */
 		if (w->visible) {
@@ -73,6 +74,7 @@ void Widget::draw(Widget *w, coords_t pos) {
 		}
 		/* clear redraw request */
 		w->redraw = false;
+		w->redrawClear = false;
 	}
 	if (w->visible && w->redrawChild) {
 		/* draw children of this widget */

@@ -29,6 +29,7 @@ public:
 	 */
 	bool AddEntry(MenuEntry *e, int8_t position = INT8_MAX);
 	bool RemoveEntry(MenuEntry *e);
+	char *GetSelectedSubmenuName();
 private:
 	void draw(coords_t offset) override;
 	void input(GUIEvent_t *ev) override;

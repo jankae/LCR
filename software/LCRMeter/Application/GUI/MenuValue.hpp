@@ -27,6 +27,9 @@ public:
 	}
 
 private:
+	void CreateUnitString(char *s, uint8_t len) {
+		Unit::StringFromValue(s, len, *value, unit);
+	}
 	void draw(coords_t offset) override {
 		display_SetForeground(Foreground);
 		display_SetBackground(Background);
@@ -34,7 +37,7 @@ private:
 				COORDS(offset.x + size.x, offset.y + size.y / 2));
 		uint8_t len = size.x / fontValue->width;
 		char s[len + 1];
-		Unit::StringFromValue(s, len, *value, unit);
+		CreateUnitString(s, len);
 		display_AutoCenterString(s, COORDS(offset.x, offset.y + size.y / 2),
 				COORDS(offset.x + size.x, offset.y + size.y));
 	}
@@ -86,3 +89,5 @@ private:
     char name[MaxNameLength + 1];
     const Unit::unit **unit;
 };
+
+template <> void MenuValue<float>::CreateUnitString(char *s, uint8_t len);

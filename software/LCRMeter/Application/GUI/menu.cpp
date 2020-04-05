@@ -107,6 +107,14 @@ bool Menu::RemoveEntry(MenuEntry *e) {
 	return true;
 }
 
+char* Menu::GetSelectedSubmenuName() {
+	if (inSubMenu) {
+		return ((Menu*) firstChild->GetNth(selectedEntry))->name;
+	} else {
+		return nullptr;
+	}
+}
+
 void Menu::draw(coords_t offset) {
 	if (!nentries) {
 		LOG(Log_GUI, LevelCrit, "Menu needs at least one entry");
@@ -379,3 +387,5 @@ void Menu::moveDown() {
 		PageSwitched();
 	}
 }
+
+

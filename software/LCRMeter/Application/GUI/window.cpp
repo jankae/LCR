@@ -30,11 +30,11 @@ Window::~Window() {
 	isPopup = lastPopup;
 	/* request full redraw of new top widget */
 	topWidget->requestRedrawFull();
-	// TODO this is extremely ugly
-	GUIEvent_t ev;
-	ev.type = EVENT_WINDOW_CLOSE;
-	ev.w = this;
-	GUI::SendEvent(&ev);
+//	// TODO this is extremely ugly
+//	GUIEvent_t ev;
+//	ev.type = EVENT_WINDOW_CLOSE;
+//	ev.w = this;
+//	GUI::SendEvent(&ev);
 
 	if (title) {
 		delete title;

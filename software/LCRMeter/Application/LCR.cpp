@@ -24,10 +24,9 @@ static TaskHandle_t handle = nullptr;
 
 // GUI elements
 Custom *cResult;
+static Menu *mainmenu;
 
-static bool configureSweep = false;
 static Sweep *sweep;
-static bool sweepActive = false;
 
 static LCR::DisplayMode displayMode = LCR::DisplayMode::AUTO;
 
@@ -82,10 +81,6 @@ static void drawComponent(Component c, coords_t startpos, uint16_t len) {
 }
 
 static void drawResult(Widget &w, coords_t pos) {
-	if (sweepActive) {
-		sweep->Display(pos, w.getSize());
-		return;
-	}
 	static LCR::DisplayMode mode = LCR::DisplayMode::AUTO;
 	static LCR::ImpedanceType ImpType = LCR::ImpedanceType::CAPACITANCE;
 	static Frontend::ResultType ResType = Frontend::ResultType::OpenLeads;
@@ -329,7 +324,7 @@ bool LCR::Init() {
 	};
 
 	Container *c = new Container(SIZE(DISPLAY_WIDTH, DISPLAY_HEIGHT));
-	Menu *mainmenu = new Menu("", SIZE(70, DISPLAY_HEIGHT));
+	mainmenu = new Menu("", SIZE(70, DISPLAY_HEIGHT));
 	mainmenu->AddEntry(
 			new MenuValue<int32_t>("Frequency", &measurementFrequency, Unit::Frequency,
 					callback_setTrueNotify, &measurementUpdated, HardwareLimits::MinFrequency,
@@ -343,7 +338,9 @@ bool LCR::Init() {
 					callback_setTrueNotify, &measurementUpdated, 1, 100));
 //	auto advancedMenu = new Menu("Advanced\nSettings", mainmenu->getSize());
 
-	mainmenu->AddEntry(new MenuAction("Sweep", callback_setTrueNotify, &configureSweep));
+	sweep = new Sweep(SIZE(DISPLAY_WIDTH - mainmenu->getSize().x, DISPLAY_HEIGHT - 10), *mainmenu);
+	sweep->setVisible(false);
+	c->attach(sweep, COORDS(0, 0));
 
 	static constexpr char *mode_items[] = {
 			"AUTO", "SERIES", "PARALLEL", nullptr
@@ -411,40 +408,39 @@ void LCR::Run() {
 		if (newMeasurement) {
 			LOG(Log_LCR, LevelDebug, "Got new measurement");
 			lastMeasurement = CalculateComponentValues(measurementResult);
-			cResult->requestRedraw();
 			newMeasurement = false;
+
+			const char *s = mainmenu->GetSelectedSubmenuName();
+			static bool lastSweepActive = false;
+			bool sweepActive = false;
+			if(s && !strcmp(s, "Sweep")) {
+				sweepActive = true;
+			}
 
 			if (sweepActive) {
 				sweep->AddResult(lastMeasurement);
-				if (!sweep->Done()) {
-					Frontend::Start(sweep->GetAcquisitionSettings());
-				}
+				Frontend::Start(sweep->GetAcquisitionSettings());
+				sweep->requestRedraw();
+			} else {
+				cResult->requestRedraw();
 			}
+
+			if (sweepActive && !lastSweepActive) {
+				sweep->setVisible(true);
+				cResult->setVisible(false);
+			} else if(!sweepActive && lastSweepActive) {
+				sweep->setVisible(false);
+				cResult->setVisible(true);
+				ConfigureFrontendMeasurement();
+				measurementUpdated = false;
+			}
+
+			lastSweepActive = sweepActive;
 
 			// trigger GUI task to redraw the result
 			GUIEvent_t ev;
 			ev.type = EVENT_NONE;
 			GUI::SendEvent(&ev);
-		}
-		if(configureSweep) {
-			configureSweep = false;
-			Sweep *new_sweep = nullptr;
-			if (sweep) {
-				auto c = sweep->GetConfig();
-				new_sweep = Sweep::Create(c);
-			} else {
-				new_sweep = Sweep::Create();
-			}
-			if (new_sweep) {
-				// Sweep created with new settings, delete old sweep data
-				if(sweep) {
-					delete sweep;
-				}
-				sweep = new_sweep;
-				sweep->Start();
-				sweepActive = true;
-				Frontend::Start(sweep->GetAcquisitionSettings());
-			}
 		}
 	}
 }

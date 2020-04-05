@@ -3,8 +3,10 @@
 #include <stdint.h>
 #include "Frontend.hpp"
 #include "LCR.hpp"
+#include "widget.hpp"
+#include "menu.hpp"
 
-class Sweep {
+class Sweep : public Widget {
 public:
 	enum class ScaleType : uint8_t {
 		Linear = 0x00,
@@ -37,24 +39,8 @@ public:
 		uint32_t biasVoltage;
 		uint32_t excitationVoltage;
 		Frontend::Range range;
-		uint32_t averages;
+		uint16_t averages;
 	};
-	~Sweep();
-	static Sweep* Create(Config config = defaultConfig);
-	bool Start();
-	bool Done();
-	Frontend::settings GetAcquisitionSettings();
-	bool AddResult(LCR::Result r);
-	Config GetConfig() {
-		return config;
-	}
-	void Display(coords_t pos, coords_t size, bool onlyData = false);
-private:
-	static constexpr color_t ColorBackground = COLOR_BG_DEFAULT;
-	static constexpr color_t ColorAxis = COLOR_BLACK;
-	static constexpr color_t ColorPrimary = COLOR_DARKGREEN;
-	static constexpr color_t ColorSecondary = COLOR_RED;
-	static constexpr color_t ColorHelplines = COLOR_LIGHTGRAY;
 	static constexpr Config defaultConfig = {
 			.X = {.f_min = 100, .f_max = 100000, .type = ScaleType::Linear, .points=101},
 			.axis = {
@@ -67,14 +53,38 @@ private:
 			.averages = 1,
 	};
 
+	Sweep(coords_t size, Menu &menu, Config c = defaultConfig);
+	~Sweep();
+	bool isActive();
+	Frontend::settings GetAcquisitionSettings();
+	bool AddResult(LCR::Result r);
+private:
+	static constexpr color_t ColorBackground = COLOR_BG_DEFAULT;
+	static constexpr color_t ColorAxis = COLOR_BLACK;
+	static constexpr color_t ColorPrimary = COLOR_DARKGREEN;
+	static constexpr color_t ColorSecondary = COLOR_RED;
+	static constexpr color_t ColorHelplines = COLOR_LIGHTGRAY;
+	static constexpr uint16_t MaxDataPoints = 250;
+
 	using Datapoint = struct {
-		float Primary;
-		float Secondary;
+		float y[2];
 	};
 
-	Sweep(Config c);
+	Widget::Type getType() override { return Widget::Type::Custom; };
 
+	// Called whenever a setting has changed that requires the sweep to reset
+	void MayorSettingChanged(Widget *w);
+	// Called whenever a setting has changed that only influences the sweep display (e.i. Y axis scaling)
+	void MinorSettingChanged(Widget *w);
+
+	void draw(coords_t offset) override;
+//	void input(GUIEvent_t *ev) override;
+
+//	Sweep(Config c);
+
+	Menu *mConfig;
 	Config config;
-	Datapoint *points;
+	Datapoint points[MaxDataPoints];
 	uint16_t pointCnt;
+	bool initialSweep;
 };
