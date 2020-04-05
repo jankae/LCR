@@ -265,22 +265,14 @@ static LCR::Result CalculateComponentValues(Frontend::Result f) {
 		res.type = LCR::ImpedanceType::CAPACITANCE;
 	}
 	if (displayMode == LCR::DisplayMode::AUTO) {
-		// Change mode depending on result
-		if (res.type == LCR::ImpedanceType::INDUCTANCE) {
-			if (phase <= 45.0f) {
-				// resistance dominates
-				res.mode = LCR::DisplayMode::SERIES;
-			} else {
-				// inductance dominates
-				res.mode = LCR::DisplayMode::PARALLEL;
-			}
+		if (phase < 5.0f && phase > -5.0f) {
+			// resistance dominates, always choose parallel model
+			res.mode = LCR::DisplayMode::PARALLEL;
 		} else {
-			if (phase >= -45.0f) {
-				// resistance dominates
-				res.mode = LCR::DisplayMode::PARALLEL;
-			} else {
-				// inductance dominates
+			if (abs(res.frontend.Z) < 1000.0f) {
 				res.mode = LCR::DisplayMode::SERIES;
+			} else {
+				res.mode = LCR::DisplayMode::PARALLEL;
 			}
 		}
 	} else {

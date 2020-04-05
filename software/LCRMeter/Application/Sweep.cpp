@@ -191,7 +191,7 @@ void Sweep::draw(coords_t offset) {
 		display_String(pos.x, pos.y + size.y - Font_Medium.height, tick);
 		Unit::SIStringFromFloat(tick, 5, config.X.f_max);
 		display_String(pos.x + size.x - strlen(tick) * Font_Medium.width, pos.y + size.y - Font_Medium.height, tick);
-		const char *xlabel = "Frequency";
+		const char *xlabel = config.X.type == ScaleType::Linear ? "Frequency (linear)" : "Frequency (log)";
 		display_String((pos.x + size.x - strlen(xlabel) * Font_Medium.width) / 2, pos.y + size.y - Font_Medium.height,
 				xlabel);
 
@@ -204,7 +204,9 @@ void Sweep::draw(coords_t offset) {
 			Unit::SIStringFromFloat(tick, 5, config.axis[0].max);
 			display_StringRotated(pos.x + 1, pos.y + strlen(tick) * Font_Medium.width, tick);
 			// Label
-			const char *label = variableNames[(int) config.axis[0].var];
+			char label[50];
+			strcpy(label, variableNames[(int) config.axis[0].var]);
+			strcat(label, config.axis[0].type == ScaleType::Linear ? " (linear)" : " (log)");
 			display_StringRotated(pos.x + 1, (pos.y + graphBottomRight.y + strlen(label) * Font_Medium.width) / 2, label);
 		}
 
@@ -217,7 +219,9 @@ void Sweep::draw(coords_t offset) {
 			Unit::SIStringFromFloat(tick, 5, config.axis[1].max);
 			display_StringRotated(pos.x + size.x - Font_Medium.height, pos.y + strlen(tick) * Font_Medium.width, tick);
 			// Label
-			const char *label = variableNames[(int) config.axis[1].var];
+			char label[50];
+			strcpy(label, variableNames[(int) config.axis[1].var]);
+			strcat(label, config.axis[1].type == ScaleType::Linear ? " (linear)" : " (log)");
 			display_StringRotated(pos.x + size.x - Font_Medium.height,
 					(pos.y + graphBottomRight.y + strlen(label) * Font_Medium.width) / 2, label);
 		}
