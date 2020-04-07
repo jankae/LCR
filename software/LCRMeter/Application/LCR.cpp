@@ -400,9 +400,12 @@ void LCR::Run() {
 				}
 
 				if (sweepActive) {
-					sweep->AddResult(lastMeasurement);
-					Frontend::Start(sweep->GetAcquisitionSettings());
-					sweep->requestRedraw();
+					// Only add a result when the correct range has been reached
+					if (lastMeasurement.frontend.type != Frontend::ResultType::Ranging) {
+						sweep->AddResult(lastMeasurement);
+						Frontend::Start(sweep->GetAcquisitionSettings());
+						sweep->requestRedraw();
+					}
 				} else {
 					cResult->requestRedraw();
 				}

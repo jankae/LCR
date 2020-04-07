@@ -555,9 +555,6 @@ static void frontend_task(void*) {
 
 						// TODO fill with proper values
 						result.range = Frontend::Range::AUTO;
-						if (callback) {
-							callback(cb_ctx, result);
-						}
 						UpdateAcquisitionState(0);
 						if (settings.range == Frontend::Range::AUTO) {
 							// Check if range switch is required
@@ -569,6 +566,7 @@ static void frontend_task(void*) {
 									ad5940_modify_reg(&ad, AD5940_REG_HSRTIACON,
 											rtia, 0x0F);
 									ad5940_release_mutex(&ad);
+									result.type = Frontend::ResultType::Ranging;
 								}
 							} else if (result.usedRangeI < 15) {
 								// increase tia gain if possible
@@ -578,8 +576,12 @@ static void frontend_task(void*) {
 									ad5940_modify_reg(&ad, AD5940_REG_HSRTIACON,
 											rtia, 0x0F);
 									ad5940_release_mutex(&ad);
+									result.type = Frontend::ResultType::Ranging;
 								}
 							}
+						}
+						if (callback) {
+							callback(cb_ctx, result);
 						}
 					} else if (state == State::Calibrating) {
 						// Store in appropriate calibration slot (calibration resistor is 1k5)

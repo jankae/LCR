@@ -18,6 +18,7 @@ Sweep::Sweep(coords_t size, Menu &menu, Config c) {
 	config = c;
 	initialSweep = true;
 	pointCnt = 0;
+	marker = 0;
 	// Create menu entries
 	mConfig = new Menu("Sweep", menu.getSize());
 	// X axis menu
@@ -88,18 +89,18 @@ Frontend::settings Sweep::GetAcquisitionSettings() {
 	s.excitationVoltage = config.excitationVoltage;
 	s.averages = config.averages;
 	s.range = config.range;
-	switch(config.X.type) {
-	case ScaleType::Linear:
-		s.frequency = util_Map(pointCnt, 0, config.X.points - 1, config.X.f_min,
-				config.X.f_max);
-		break;
-	case ScaleType::Log: {
-		float b = log(config.X.f_max/config.X.f_min) / (config.X.points - 1);
-		s.frequency = config.X.f_min * exp(b * pointCnt);
-	}
-		break;
-	}
+	s.frequency = PointToFrequency(pointCnt >= config.X.points ? 0 : pointCnt);
 	return s;
+}
+
+uint32_t Sweep::PointToFrequency(uint16_t point) {
+	switch (config.X.type) {
+	case ScaleType::Linear:
+		return util_Map(point, 0, config.X.points - 1, config.X.f_min, config.X.f_max);
+	case ScaleType::Log:
+		float b = log(config.X.f_max / config.X.f_min) / (config.X.points - 1);
+		return config.X.f_min * exp(b * point);
+	}
 }
 
 bool Sweep::AddResult(LCR::Result r) {
@@ -151,7 +152,9 @@ void Sweep::draw(coords_t offset) {
 	size = getSize();
 	auto pos = offset;
 	coords_t graphTopLeft = pos + COORDS(Font_Medium.height + 2, 0);
-	coords_t graphBottomRight = pos + size - COORDS(Font_Medium.height + 2, Font_Medium.height + 2);
+	coords_t graphBottomRight = pos + size - COORDS(Font_Medium.height + 2, 2 * Font_Medium.height + 2);
+
+	uint16_t markerX = util_Map(marker, 0, config.X.points - 1, graphTopLeft.x + 1, graphBottomRight.x - 1);
 
 	auto GetPointCoordinate = [this, graphTopLeft, graphBottomRight](uint8_t axis, uint16_t point) -> coords_t {
 		coords_t p;
@@ -188,11 +191,11 @@ void Sweep::draw(coords_t offset) {
 		char tick[6];
 		Unit::SIStringFromFloat(tick, 5, config.X.f_min);
 		display_SetFont(Font_Medium);
-		display_String(pos.x, pos.y + size.y - Font_Medium.height, tick);
+		display_String(pos.x, pos.y + size.y - 2 * Font_Medium.height, tick);
 		Unit::SIStringFromFloat(tick, 5, config.X.f_max);
-		display_String(pos.x + size.x - strlen(tick) * Font_Medium.width, pos.y + size.y - Font_Medium.height, tick);
+		display_String(pos.x + size.x - strlen(tick) * Font_Medium.width, pos.y + size.y - 2 * Font_Medium.height, tick);
 		const char *xlabel = config.X.type == ScaleType::Linear ? "Frequency (linear)" : "Frequency (log)";
-		display_String((pos.x + size.x - strlen(xlabel) * Font_Medium.width) / 2, pos.y + size.y - Font_Medium.height,
+		display_String((pos.x + size.x - strlen(xlabel) * Font_Medium.width) / 2, pos.y + size.y - 2 * Font_Medium.height,
 				xlabel);
 
 		// extreme ticks and label for primary Y axis
@@ -225,6 +228,17 @@ void Sweep::draw(coords_t offset) {
 			display_StringRotated(pos.x + size.x - Font_Medium.height,
 					(pos.y + graphBottomRight.y + strlen(label) * Font_Medium.width) / 2, label);
 		}
+
+		// Show marker
+		display_SetForeground(ColorMarker);
+		display_VerticalLine(markerX, graphTopLeft.y, graphBottomRight.y - graphTopLeft.y);
+		display_SetForeground(COLOR_BLACK);
+		display_String(2, pos.y + size.y - Font_Medium.height, "Marker:");
+		char freq[10];
+		Unit::StringFromValue(freq, 8, PointToFrequency(marker), Unit::Frequency);
+		display_SetForeground(ColorAxis);
+		display_String(50, pos.y + size.y - Font_Medium.height, freq);
+
 		// display data points
 		for (uint8_t axis = 0; axis < 2; axis++) {
 			if (config.axis[axis].var == Variable::None) {
@@ -264,6 +278,11 @@ void Sweep::draw(coords_t offset) {
 						x1 = graphBottomRight.x - 1;
 					}
 					display_RectangleFull(from.x + 1, graphTopLeft.y + 1, x1, graphBottomRight.y - 1);
+					if (markerX >= from.x + 1 && markerX <= x1) {
+						// marker has been cleared, redraw
+						display_SetForeground(ColorMarker);
+						display_VerticalLine(markerX, graphTopLeft.y, graphBottomRight.y - graphTopLeft.y);
+					}
 					cleared = true;
 				}
 				if (axis == 0) {
@@ -275,11 +294,32 @@ void Sweep::draw(coords_t offset) {
 			}
 		}
 	}
+
+	// always update the marker variables
+	display_SetFont(Font_Medium);
+	for (uint8_t i = 0; i < 2; i++) {
+		if (i == 0) {
+			display_SetForeground(ColorPrimary);
+		} else {
+			display_SetForeground(ColorSecondary);
+		}
+		char buf[10];
+		if (pointCnt <= marker && initialSweep) {
+			// no data available at marker position yet
+			strcpy(buf, "?.???");
+		} else {
+			Unit::SIStringFromFloat(buf, 7, points[marker].y[i]);
+		}
+		display_String(120 + i * 70, pos.y + size.y - Font_Medium.height, buf);
+	}
 }
 
 void Sweep::MayorSettingChanged(Widget *w) {
 	initialSweep = true;
 	pointCnt = 0;
+	if (marker >= config.X.points) {
+		marker = config.X.points - 1;
+	}
 	// TODO check settings
 	requestRedrawFull();
 }
@@ -292,5 +332,32 @@ void Sweep::MinorSettingChanged(Widget *w) {
 Sweep::~Sweep() {
 	if (mConfig) {
 		delete mConfig;
+	}
+}
+
+void Sweep::input(GUIEvent_t *ev) {
+	switch(ev->type) {
+	case EVENT_TOUCH_DRAGGED:
+		ev->pos = ev->dragged;
+		/* no break */
+	case EVENT_TOUCH_PRESSED: {
+		// Calculate new marker position
+		uint16_t xLeft = Font_Medium.height + 3;
+		uint16_t xRight = size.x - (Font_Medium.height + 3);
+		int16_t marker_new = util_Map(ev->pos.x, xLeft, xRight, 0, config.X.points - 1);
+		if (marker_new < 0) {
+			marker_new = 0;
+		} else if (marker_new >= config.X.points) {
+			marker_new = config.X.points - 1;
+		}
+		if (marker_new != marker) {
+			marker = marker_new;
+			requestRedrawFull();
+		}
+	}
+		break;
+	default:
+		break;
+
 	}
 }

@@ -55,7 +55,6 @@ public:
 
 	Sweep(coords_t size, Menu &menu, Config c = defaultConfig);
 	~Sweep();
-	bool isActive();
 	Frontend::settings GetAcquisitionSettings();
 	bool AddResult(LCR::Result r);
 private:
@@ -63,7 +62,7 @@ private:
 	static constexpr color_t ColorAxis = COLOR_BLACK;
 	static constexpr color_t ColorPrimary = COLOR_DARKGREEN;
 	static constexpr color_t ColorSecondary = COLOR_RED;
-	static constexpr color_t ColorHelplines = COLOR_LIGHTGRAY;
+	static constexpr color_t ColorMarker = COLOR_LIGHTGRAY;
 	static constexpr uint16_t MaxDataPoints = 250;
 
 	using Datapoint = struct {
@@ -77,8 +76,10 @@ private:
 	// Called whenever a setting has changed that only influences the sweep display (e.i. Y axis scaling)
 	void MinorSettingChanged(Widget *w);
 
+	uint32_t PointToFrequency(uint16_t point);
+
 	void draw(coords_t offset) override;
-//	void input(GUIEvent_t *ev) override;
+	void input(GUIEvent_t *ev) override;
 
 //	Sweep(Config c);
 
@@ -87,4 +88,5 @@ private:
 	Datapoint points[MaxDataPoints];
 	uint16_t pointCnt;
 	bool initialSweep;
+	uint16_t marker;
 };

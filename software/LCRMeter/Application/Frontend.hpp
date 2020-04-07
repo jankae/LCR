@@ -12,10 +12,11 @@ enum class Range : uint8_t {
 };
 
 enum class ResultType : uint8_t {
-	Valid,
-	Overrange,
-	Underrange,
-	OpenLeads,
+	Valid,		// Valid result in achieved in the correct range
+	Ranging,	// Got a result but the range in auto mode has not settled yet
+	Overrange,	// Impedance too high and unable to change range (either not in auto mode or already on highest range)
+	Underrange, // Impedance too low and unable to change range (either not in auto mode or already on lowest range)
+	OpenLeads,	// no current and no voltage detected -> leads not connected
 };
 
 using Result = struct result {
