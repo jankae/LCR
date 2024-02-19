@@ -17,7 +17,7 @@ extern SPI_HandleTypeDef hspi3;
 
 #define Log_Frontend (LevelDebug|LevelInfo|LevelWarn|LevelError|LevelCrit)
 
-static constexpr uint32_t referenceVoltage = 1100000;
+static constexpr uint32_t referenceVoltage = 1110000;
 static Frontend::Callback callback;
 static void *cb_ctx;
 static ProgressBar *AcquisitionProgress = nullptr;
