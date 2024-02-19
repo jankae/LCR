@@ -81,7 +81,7 @@ bool Menu::RemoveEntry(MenuEntry *e) {
 		e->next = nullptr;
 	} else {
 		// find entry before e
-		MenuEntry *before = firstChild;
+		Widget *before = firstChild;
 		while(before->next != e) {
 			if (!before->next) {
 				// reached end of list before finding e
