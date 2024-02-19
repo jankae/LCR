@@ -585,7 +585,7 @@ static void frontend_task(void*) {
 						}
 					} else if (state == State::Calibrating) {
 						// Store in appropriate calibration slot (calibration resistor is 1k5)
-						float magCal = 1500.0f / mag;
+						float magCal = 1000.0f / mag;
 						LOG(Log_Frontend, LevelInfo,
 								"Calibration at gain %lu, frequency %luHz is: %f@%f",
 								ad5940_HSTIA_gain_to_value(rtia),
