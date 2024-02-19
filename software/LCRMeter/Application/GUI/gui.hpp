@@ -29,6 +29,13 @@
 
 #include "desktop.hpp"
 
+#ifndef M_PI
+#define M_PI (3.14159265358979323846)
+#endif
+#ifndef M_SQRT1_2
+#define M_SQRT1_2 (0.707106781186547524401)
+#endif
+
 namespace GUI {
 
 bool Init(Widget& top);
