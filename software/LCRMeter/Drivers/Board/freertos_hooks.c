@@ -63,6 +63,7 @@ void prvGetRegistersFromStack(uint32_t *pulFaultStackAddress) {
 }
 
 void HardFault_Handler( void ) __attribute__((naked,no_instrument_function));
+#if defined __GNUC__
 void HardFault_Handler()
 {
 	__asm volatile (
@@ -76,6 +77,20 @@ void HardFault_Handler()
 		" handler2_address_const: .word prvGetRegistersFromStack    \n"
 		);
 }
+#elif defined __ICCARM__
+void HardFault_Handler()
+{
+	__asm volatile (
+		" tst lr, #4                                                \n"
+		" ite eq                                                    \n"
+		" mrseq r0, msp                                             \n"
+		" mrsne r0, psp                                             \n"
+		" ldr r1, [r0, #24]                                         \n"
+		" ldr r2, =prvGetRegistersFromStack                         \n"
+		" bx r2                                                     \n"
+		);
+}
+#endif
 #endif
 
 #if configGENERATE_RUN_TIME_STATS
