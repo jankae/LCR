@@ -17,7 +17,7 @@ static int32_t measurementFrequency = 1000;
 static int32_t biasVoltage = 0;
 static int32_t excitationVoltage = 100000;
 static bool measurementUpdated = false;
-static uint32_t measurementAverages = 10;
+static int32_t measurementAverages = 10;
 static bool newMeasurement = false;
 static Frontend::Result measurementResult;
 static TaskHandle_t handle = nullptr;
