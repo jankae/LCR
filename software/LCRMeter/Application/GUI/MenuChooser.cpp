@@ -1,6 +1,5 @@
 #include "MenuChooser.hpp"
 
-#include "cast.hpp"
 #include "Dialog/ItemChooserDialog.hpp"
 
 MenuChooser::MenuChooser(const char* name, const char* const * items,
@@ -37,8 +36,7 @@ void MenuChooser::input(GUIEvent_t* ev) {
 		if (popup) {
 			// Select new item with itemchooser dialog
 			new ItemChooserDialog("Select setting", items, *value,
-					pmf_cast<void (*)(void*, bool, uint8_t), MenuChooser,
-							&MenuChooser::ChooserCallback>::cfn, this);
+					[&](void*, bool updated, uint8_t newval) { this->ChooserCallback(updated, newval); }, this);
 		} else {
 			// simply cycle through items
 			uint8_t numItems = 0;

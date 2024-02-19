@@ -15,7 +15,7 @@
 
 class EventCatcher : public Widget {
 public:
-	using Callback = void(*)(void *ptr, Widget *source, GUIEvent_t *ev);
+	using Callback = std::function<void (void *ptr, Widget*, GUIEvent_t*)>;
 	using FilterLambda = bool (*)(GUIEvent_t * const ev);
 
 	EventCatcher(Widget *child, FilterLambda filt, Callback cb, void *ptr);

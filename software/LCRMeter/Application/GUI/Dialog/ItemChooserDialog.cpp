@@ -1,6 +1,5 @@
 #include "ItemChooserDialog.hpp"
 
-#include "cast.hpp"
 //#include "buttons.h"
 #include "gui.hpp"
 #include "Unit.hpp"
@@ -16,12 +15,10 @@ ItemChooserDialog::ItemChooserDialog(const char* title,
 	auto c = new Container(w->getAvailableArea());
 	auto i = new ItemChooser(items, &value, Font_Big, 6, c->getSize().x);
 	auto ok = new Button("OK", Font_Big,
-			pmf_cast<void (*)(void*, Widget *w), ItemChooserDialog,
-					&ItemChooserDialog::ButtonPressed>::cfn, this,
+			[&](void*, Widget *w) { this->ButtonPressed(w); }, this,
 			COORDS(c->getSize().x / 2 - 10, 40));
 	auto abort = new Button("ABORT", Font_Big,
-			pmf_cast<void (*)(void*, Widget *w), ItemChooserDialog,
-					&ItemChooserDialog::ButtonPressed>::cfn, this,
+			[&](void*, Widget *w) { this->ButtonPressed(w); }, this,
 			COORDS(c->getSize().x / 2 - 10, 40));
 	auto ec = new EventCatcher(i, [](GUIEvent_t * const ev) -> bool {
 //		if(ev->type == EVENT_BUTTON_CLICKED) {
@@ -30,8 +27,7 @@ ItemChooserDialog::ItemChooserDialog(const char* title,
 //			}
 //		}
 		return false;
-	}, pmf_cast<void (*)(void*, Widget *w, GUIEvent_t *ev), ItemChooserDialog,
-	&ItemChooserDialog::EventCaught>::cfn, this);
+	}, [&](void*, Widget *w, GUIEvent_t *ev) { this->EventCaught(w, ev); }, this);
 	c->attach(ec, COORDS(0, 0));
 	c->attach(abort, COORDS(2, c->getSize().y - abort->getSize().y - 2));
 	c->attach(ok,

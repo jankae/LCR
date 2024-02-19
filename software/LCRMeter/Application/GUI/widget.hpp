@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <util.h>
+#include <functional>
 #include "events.hpp"
 
 class Widget {
@@ -44,7 +45,7 @@ public:
 	Widget();
 	virtual ~Widget();
 
-	using Callback = void (*)(void*, Widget*);
+	using Callback = std::function<void (void*, Widget*)>;
 
 	static void draw(Widget *w, coords_t pos);
 	static void input(Widget *w, GUIEvent_t *ev);

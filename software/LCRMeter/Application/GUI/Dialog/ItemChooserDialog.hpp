@@ -9,7 +9,7 @@
 
 class ItemChooserDialog {
 public:
-	using Callback = void (*)(void *ptr, bool updated, uint8_t newval);
+	using Callback = std::function<void (void*, bool, uint8_t)>;
 	ItemChooserDialog(const char *title, const char * const *items,
 			uint8_t initial_selection, Callback cb, void *ptr);
 	~ItemChooserDialog();

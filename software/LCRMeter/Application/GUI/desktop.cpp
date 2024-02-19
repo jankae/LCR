@@ -3,7 +3,6 @@
 #include "Config.hpp"
 #include "file.hpp"
 #include "log.h"
-#include "cast.hpp"
 
 Desktop::Desktop() {
 	AppCnt = 0;
@@ -14,9 +13,8 @@ Desktop::Desktop() {
 	size.y = DISPLAY_HEIGHT;
 
 	configIndex = Config::AddParseFunctions(
-			pmf_cast<bool (*)(void*), Desktop, &Desktop::WriteConfig>::cfn,
-			pmf_cast<bool (*)(void*), Desktop, &Desktop::ReadConfig>::cfn,
-			this);
+			[&]() { return this->WriteConfig(); },
+			[&]() { return this->ReadConfig(); });
 }
 
 Desktop::~Desktop() {

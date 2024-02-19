@@ -4,7 +4,6 @@
 #include "menuentry.hpp"
 #include "Unit.hpp"
 #include "Dialog/ValueInput.hpp"
-#include "cast.hpp"
 //#include "buttons.h"
 
 template<typename T>
@@ -57,8 +56,7 @@ private:
 //			/* no break */
 		case EVENT_TOUCH_PRESSED:
 			new ValueInput<T>("New value:", value, unit,
-					pmf_cast<void (*)(void*, bool), MenuValue,
-							&MenuValue::ValueCallback>::cfn, this, firstChar);
+					[&](void*, bool updated) { this->ValueCallback(updated); }, nullptr, firstChar);
 		}
 		ev->type = EVENT_NONE;
 	}

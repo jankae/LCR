@@ -5,7 +5,6 @@
 #include "widget.hpp"
 #include "window.hpp"
 #include "button.hpp"
-#include "cast.hpp"
 //#include "buttons.h"
 #include "container.hpp"
 #include "label.hpp"
@@ -15,7 +14,7 @@
 template <typename T>
 class ValueInput {
 public:
-	using Callback = void (*)(void *ptr, bool OK);
+	using Callback = std::function<void (void*, bool)>;
 	ValueInput(const char *title, T *value, const Unit::unit *unit[] = Unit::None,
 			Callback cb = nullptr, void *ptr = nullptr, char firstChar = 0) {
 		LOG(Log_GUI, LevelInfo, "Creating value dialog, free heap: %lu",
@@ -42,8 +41,7 @@ public:
 				uint8_t number = 1 + i + j * 3;
 				char name[2] = { (char) (number + '0'), 0 };
 				auto button = new Button(name, Font_Big,
-						pmf_cast<void (*)(void*, Widget *w), ValueInput,
-								&ValueInput::NumberPressed>::cfn, this,
+						[&](void*, Widget *w) { this->NumberPressed(w); }, this,
 						COORDS(fieldSizeX, fieldSizeY));
 				c->attach(button,
 						COORDS(fieldOffsetX + i * fieldIncX,
@@ -51,8 +49,7 @@ public:
 			}
 		}
 		auto zero = new Button("0", Font_Big,
-				pmf_cast<void (*)(void*, Widget *w), ValueInput,
-						&ValueInput::NumberPressed>::cfn, this,
+				[&](void*, Widget *w) { this->NumberPressed(w); }, this,
 				COORDS(fieldSizeX, fieldSizeY));
 
 		if (unit == Unit::Hex) {
@@ -63,8 +60,7 @@ public:
 				for (uint8_t j = 0; j < 2; j++) {
 					char name[2] = { (char) ('A' + i - 3 + j * 3), 0 };
 					auto button = new Button(name, Font_Big,
-							pmf_cast<void (*)(void*, Widget *w), ValueInput,
-									&ValueInput::NumberPressed>::cfn, this,
+							[&](void*, Widget *w) { this->NumberPressed(w); }, this,
 							COORDS(fieldSizeX, fieldSizeY));
 					c->attach(button,
 							COORDS(fieldOffsetX + i * fieldIncX,
@@ -75,16 +71,14 @@ public:
 					COORDS(fieldOffsetX + 3 * fieldIncX,
 							fieldOffsetY + 2 * fieldIncY));
 			auto enter = new Button("Enter", Font_Big,
-					pmf_cast<void (*)(void*, Widget *w), ValueInput,
-							&ValueInput::UnitPressed>::cfn, this,
+					[&](void*, Widget *w) { this->UnitPressed(w); }, this,
 					COORDS(fieldSizeX + fieldIncX, fieldSizeY));
 			c->attach(enter,
 					COORDS(fieldOffsetX + 4 * fieldIncX,
 							fieldOffsetY + 2 * fieldIncY));
 		} else {
 			auto sign = new Button("+/-", Font_Big,
-					pmf_cast<void (*)(void*, Widget *w), ValueInput,
-							&ValueInput::ChangeSign>::cfn, this,
+					[&](void*, Widget *w) { this->ChangeSign(w); }, this,
 					COORDS(fieldSizeX, fieldSizeY));
 			c->attach(sign,
 					COORDS(fieldOffsetX + 3 * fieldIncX,
@@ -93,8 +87,7 @@ public:
 					COORDS(fieldOffsetX + 3 * fieldIncX,
 							fieldOffsetY + 1 * fieldIncY));
 			dot = new Button(".", Font_Big,
-					pmf_cast<void (*)(void*, Widget *w), ValueInput,
-							&ValueInput::NumberPressed>::cfn, this,
+					[&](void*, Widget *w) { this->NumberPressed(w); }, this,
 					COORDS(fieldSizeX, fieldSizeY));
 			c->attach(dot,
 					COORDS(fieldOffsetX + 3 * fieldIncX,
@@ -104,8 +97,7 @@ public:
 					fieldIncX, fieldIncY, fieldSizeX, fieldSizeY);
 		}
 		auto backspace = new Button("BACKSPACE", Font_Big,
-				pmf_cast<void (*)(void*, Widget *w), ValueInput,
-						&ValueInput::Backspace>::cfn, this,
+				[&](void*, Widget *w) { this->Backspace(w); }, this,
 				COORDS(fieldSizeX + 3 * fieldIncX, 35));
 		c->attach(backspace, COORDS(fieldOffsetX, fieldOffsetY + 3 * fieldIncY));
 		auto abort = new Button("Abort", Font_Big, [](void *ptr, Widget *w) {
@@ -127,8 +119,7 @@ public:
 //			}
 			return false;
 		},
-				pmf_cast<void (*)(void*, Widget *w, GUIEvent_t *ev), ValueInput,
-						&ValueInput::EventCaught>::cfn, this);
+				[&](void*, Widget *w, GUIEvent_t *ev) { this->EventCaught(w, ev); }, nullptr);
 		w->setMainWidget(ec);
 		abort->select();
 		if (firstChar != 0) {
@@ -148,8 +139,7 @@ private:
 				name = "Enter";
 			}
 			auto button = new Button(name, Font_Big,
-					pmf_cast<void (*)(void*, Widget *w), ValueInput,
-							&ValueInput::UnitPressed>::cfn, this,
+					[&](void*, Widget *w) { this->UnitPressed(w); }, this,
 					SIZE(sizeX + incX, sizeY));
 			c->attach(button, topLeft);
 			topLeft.y += incY;
