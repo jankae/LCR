@@ -26,7 +26,7 @@ static bool VCCRail() {
 		return false;
 	}
 	uint16_t raw = HAL_ADC_GetValue(&hadc1);
-	constexpr float ReferenceTypical = 1.2f;
+	constexpr float ReferenceTypical = 1.23f;
 	constexpr float ExpectedSupply = 3.3f;
 	constexpr uint16_t ExpectedADC = ReferenceTypical * 4096 / ExpectedSupply;
 	uint16_t supply = 3300 * ExpectedADC / raw;
