@@ -46,7 +46,7 @@ exti_result_t exti_set_callback(GPIO_TypeDef *gpio, uint16_t pin, exti_type_t ty
 	ASSERT(pin != 0);
 	ASSERT(gpio != NULL);
 
-	uint8_t index = 31 - __builtin_clz(pin);
+	uint8_t index = 31 - __CLZ(pin);
 	ASSERT(pin < 1 << EXTI_MAX_ENTRIES);
 
 	if (entries[index].gpio && entries[index].gpio != gpio) {
@@ -95,7 +95,7 @@ exti_result_t exti_clear_callback(GPIO_TypeDef *gpio, uint16_t pin) {
 		exti_init();
 	}
 	ASSERT(pin != 0);
-	uint8_t index = 31 - __builtin_clz(pin);
+	uint8_t index = 31 - __CLZ(pin);
 	if (entries[index].gpio) {
 		if (gpio != entries[index].gpio) {
 			LOG(Log_Exti, LevelError,
@@ -119,7 +119,7 @@ void exti_get_callback(GPIO_TypeDef* gpio, uint16_t pin, exti_callback_t* cb,
 		exti_init();
 	}
 	ASSERT(pin != 0);
-	uint8_t index = 31 - __builtin_clz(pin);
+	uint8_t index = 31 - __CLZ(pin);
 	if (entries[index].gpio) {
 		if (gpio != entries[index].gpio) {
 			LOG(Log_Exti, LevelWarn,

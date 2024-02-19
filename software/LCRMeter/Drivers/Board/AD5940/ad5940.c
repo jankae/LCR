@@ -911,7 +911,7 @@ ad5940_result_t ad5940_set_dft(ad5940_t *a, ad5940_dftconfig_t *dft) {
 			break;
 		}
 		// configure points
-		uint16_t dftnumval = 29 - __builtin_clz(dft->points);
+		uint16_t dftnumval = 29 - __CLZ(dft->points);
 		if (dftnumval > 0x0C) {
 			LOG(Log_AD5940, LevelError,
 					"Invalid number of DFT points, %d should be between 4 and 16384");
