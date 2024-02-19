@@ -35,10 +35,11 @@ private:
 		display_AutoCenterString(name, COORDS(offset.x, offset.y),
 				COORDS(offset.x + size.x, offset.y + size.y / 2));
 		uint8_t len = size.x / fontValue->width;
-		char s[len + 1];
+		char* s = new char[len + 1];
 		CreateUnitString(s, len);
 		display_AutoCenterString(s, COORDS(offset.x, offset.y + size.y / 2),
 				COORDS(offset.x + size.x, offset.y + size.y));
+		delete [] s;
 	}
 	void input(GUIEvent_t *ev) override {
 		char firstChar = 0;

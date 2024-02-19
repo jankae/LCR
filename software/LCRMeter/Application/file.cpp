@@ -104,7 +104,7 @@ File::ParameterResult File::ReadParameters(const Entry *paramList,
 		f_lseek(&file, 0);
 		/* opened file, now read parameters */
 		char line[50];
-		uint8_t valueSet[length];
+		uint8_t* valueSet = new uint8_t[length];
 		memset(valueSet, 0, sizeof(valueSet));
 		while (f_gets(line, sizeof(line), &file)) {
 			if (line[0] == '#') {
@@ -158,6 +158,7 @@ File::ParameterResult File::ReadParameters(const Entry *paramList,
 							} else if (!strncmp(start, "false", 5)) {
 								*(bool*) paramList[i].ptr = false;
 							} else {
+								delete [] valueSet;
 								return ParameterResult::Error;
 							}
 						}
@@ -176,6 +177,7 @@ File::ParameterResult File::ReadParameters(const Entry *paramList,
 			}
 			if(i==length) {
 				/* all parameters have been set */
+				delete [] valueSet;
 				return ParameterResult::OK;
 			}
 		}
