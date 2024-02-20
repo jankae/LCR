@@ -13,8 +13,7 @@ template <> void ValueInput<float>::CreateUnitButtons(Container *c, coords_t top
 				strcpy(name, "OK");
 			}
 			auto button = new Button(name, Font_Big,
-					pmf_cast<void (*)(void*, Widget *w), ValueInput,
-							&ValueInput::UnitPressed>::cfn, this,
+					[&](void*, Widget *w) { this->UnitPressed(w); }, this,
 					SIZE(sizeX, sizeY));
 			c->attach(button, topLeft + COORDS(incX * i, incY * j));
 			prefix++;

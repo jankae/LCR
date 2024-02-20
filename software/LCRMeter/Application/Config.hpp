@@ -1,15 +1,16 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include "file.hpp"
 
 namespace Config {
 
-using WriteFunc = bool (*)(void *ptr);
-using ReadFunc = bool (*)(void *ptr);
+using WriteFunc = std::function<bool (void)>;
+using ReadFunc = std::function<bool (void)>;
 
 void Init();
-int AddParseFunctions(WriteFunc write, ReadFunc read, void *ptr);
+int AddParseFunctions(WriteFunc write, ReadFunc read);
 bool RemoveParseFunctions(int index);
 
 bool Store(const char *filename);

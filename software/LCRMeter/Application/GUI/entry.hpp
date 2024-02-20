@@ -129,8 +129,7 @@ private:
 	    switch(ev->type) {
 	    case EVENT_TOUCH_RELEASED:
 			new ValueInput<T>("New value?", value, unit,
-					pmf_cast<void (*)(void*, bool), Entry,
-							&Entry::ValueInputCallback>::cfn, this);
+					[&](bool ok) { this->ValueInputCallback(ok); });
 			ev->type = EVENT_NONE;
 	    	break;
 	    default:

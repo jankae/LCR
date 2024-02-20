@@ -5,7 +5,6 @@
 using ConfigEntry = struct configEntry {
 	Config::WriteFunc write;
 	Config::ReadFunc read;
-	void *ptr;
 	configEntry *next;
 	uint32_t index;
 };
@@ -18,12 +17,11 @@ void Config::Init() {
 	cnt = 0;
 }
 
-int Config::AddParseFunctions(WriteFunc write, ReadFunc read, void *ptr) {
+int Config::AddParseFunctions(WriteFunc write, ReadFunc read) {
 	cnt++;
 	ConfigEntry *add = new ConfigEntry;
 	add->write = write;
 	add->read = read;
-	add->ptr = ptr;
 	add->next = nullptr;
 	add->index = cnt;
 	if (!first) {
@@ -69,7 +67,7 @@ bool Config::Store(const char* filename) {
 	bool success = true;
 	while (entry) {
 		if (entry->write) {
-			if (!entry->write(entry->ptr)) {
+			if (!entry->write()) {
 				LOG(Log_Config, LevelError, "Config write function failed");
 				success = false;
 				break;
@@ -91,7 +89,7 @@ bool Config::Load(const char* filename) {
 	bool success = true;
 	while (entry) {
 		if (entry->read) {
-			if (!entry->read(entry->ptr)) {
+			if (!entry->read()) {
 				LOG(Log_Config, LevelError, "Config read function failed");
 				success = false;
 				break;

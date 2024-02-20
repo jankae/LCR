@@ -4,7 +4,6 @@
 #include "menuentry.hpp"
 #include "Unit.hpp"
 #include "Dialog/ValueInput.hpp"
-#include "cast.hpp"
 //#include "buttons.h"
 
 template<typename T>
@@ -36,10 +35,11 @@ private:
 		display_AutoCenterString(name, COORDS(offset.x, offset.y),
 				COORDS(offset.x + size.x, offset.y + size.y / 2));
 		uint8_t len = size.x / fontValue->width;
-		char s[len + 1];
+		char* s = new char[len + 1];
 		CreateUnitString(s, len);
 		display_AutoCenterString(s, COORDS(offset.x, offset.y + size.y / 2),
 				COORDS(offset.x + size.x, offset.y + size.y));
+		delete [] s;
 	}
 	void input(GUIEvent_t *ev) override {
 		char firstChar = 0;
@@ -57,8 +57,7 @@ private:
 //			/* no break */
 		case EVENT_TOUCH_PRESSED:
 			new ValueInput<T>("New value:", value, unit,
-					pmf_cast<void (*)(void*, bool), MenuValue,
-							&MenuValue::ValueCallback>::cfn, this, firstChar);
+					[&](void*, bool updated) { this->ValueCallback(updated); }, nullptr, firstChar);
 		}
 		ev->type = EVENT_NONE;
 	}

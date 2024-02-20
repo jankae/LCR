@@ -1,0 +1,7 @@
+# IAR files
+*.dep
+*.ewd
+*.ewt
+settings/
+Debug/
+Release/

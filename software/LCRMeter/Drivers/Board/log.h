@@ -57,7 +57,7 @@ extern "C" {
 	if(!(x)) { \
 		log_write("    ASSERT", LevelCrit, "Assertion failed: %s, line %d", __FILE__, __LINE__); \
 		log_flush(); \
-		__BKPT(); \
+		__BKPT(0); \
 	} \
 } while (0)
 #else

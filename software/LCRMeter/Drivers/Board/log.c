@@ -92,7 +92,7 @@ void log_write(const char *module, uint8_t level, const char *fmt, ...) {
 	int written = 0;
 	va_list args;
 	va_start(args, fmt);
-	uint8_t lvl = 31 - __builtin_clz(level);
+	uint8_t lvl = 31 - __CLZ(level);
 #ifdef LOG_USE_MUTEXES
 	if (!stm_in_interrupt()) {
 		xSemaphoreTake(mutex, portMAX_DELAY);

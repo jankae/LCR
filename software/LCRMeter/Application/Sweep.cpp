@@ -2,7 +2,6 @@
 #include "gui.hpp"
 #include "HardwareLimits.hpp"
 #include "log.h"
-#include "cast.hpp"
 
 #define Log_Sweep (LevelDebug|LevelInfo|LevelWarn|LevelError|LevelCrit)
 
@@ -24,15 +23,15 @@ Sweep::Sweep(coords_t size, Menu &menu, Config c) {
 	// X axis menu
 	auto mX = new Menu("Frequency\nSetup", menu.getSize());
 	auto mXmin = new MenuValue<uint32_t>("Min.Freq", &config.X.f_min, Unit::Frequency,
-			pmf_cast<void (*)(void*, Widget *w), Sweep, &Sweep::MayorSettingChanged>::cfn, this,
+			[&](void*, Widget *w) { this->MayorSettingChanged(w); }, this,
 			HardwareLimits::MinFrequency, HardwareLimits::MaxFrequency);
 	auto mXmax = new MenuValue<uint32_t>("Max.Freq", &config.X.f_max, Unit::Frequency,
-			pmf_cast<void (*)(void*, Widget *w), Sweep, &Sweep::MayorSettingChanged>::cfn, this,
+			[&](void*, Widget *w) { this->MayorSettingChanged(w); }, this,
 			HardwareLimits::MinFrequency, HardwareLimits::MaxFrequency);
 	auto mPoints = new MenuValue<uint16_t>("Points", &config.X.points, Unit::None,
-			pmf_cast<void (*)(void*, Widget *w), Sweep, &Sweep::MayorSettingChanged>::cfn, this, 2, MaxDataPoints);
+			[&](void*, Widget *w) { this->MayorSettingChanged(w); }, this, 2, MaxDataPoints);
 	auto mXScale = new MenuChooser("Scale", scaleTypeNames, (uint8_t*) &config.X.type,
-			pmf_cast<void (*)(void*, Widget *w), Sweep, &Sweep::MayorSettingChanged>::cfn, this, false);
+			[&](void*, Widget *w) { this->MayorSettingChanged(w); }, this, false);
 	mX->AddEntry(mXmin);
 	mX->AddEntry(mXmax);
 	mX->AddEntry(mPoints);
@@ -42,13 +41,13 @@ Sweep::Sweep(coords_t size, Menu &menu, Config c) {
 	Menu *mAxis[2];
 	for (uint8_t i = 0; i < 2; i++) {
 		auto mVar = new MenuChooser("Variable", variableNames, (uint8_t*) &config.axis[i].var,
-				pmf_cast<void (*)(void*, Widget *w), Sweep, &Sweep::MayorSettingChanged>::cfn, this);
+				[&](void*, Widget *w) { this->MayorSettingChanged(w); }, this);
 		auto mMin = new MenuValue<float>("Y min", &config.axis[i].min, Unit::None,
-				pmf_cast<void (*)(void*, Widget *w), Sweep, &Sweep::MinorSettingChanged>::cfn, this);
+				[&](void*, Widget *w) { this->MinorSettingChanged(w); }, this);
 		auto mMax = new MenuValue<float>("Y max", &config.axis[i].max, Unit::None,
-				pmf_cast<void (*)(void*, Widget *w), Sweep, &Sweep::MinorSettingChanged>::cfn, this);
+				[&](void*, Widget *w) { this->MinorSettingChanged(w); }, this);
 		auto mScale = new MenuChooser("Scale", scaleTypeNames, (uint8_t*) &config.axis[i].type,
-				pmf_cast<void (*)(void*, Widget *w), Sweep, &Sweep::MinorSettingChanged>::cfn, this, false);
+				[&](void*, Widget *w) { this->MinorSettingChanged(w); }, this, false);
 		constexpr char *MenuNames[] = { "Primary\nY-axis", "Secondary\nY-axis" };
 		mAxis[i] = new Menu(MenuNames[i], menu.getSize());
 		mAxis[i]->AddEntry(mVar);
@@ -60,12 +59,12 @@ Sweep::Sweep(coords_t size, Menu &menu, Config c) {
 	// acquisition menu
 	auto mAcq = new Menu("Acquisition\nSettings", menu.getSize());
 	auto mAvg = new MenuValue<uint16_t>("Averages", &config.averages, Unit::None,
-			pmf_cast<void (*)(void*, Widget *w), Sweep, &Sweep::MinorSettingChanged>::cfn, this, 1, 1000);
+			[&](void*, Widget *w) { this->MinorSettingChanged(w); }, this, 1, 1000);
 	auto mExc = new MenuValue<uint32_t>("Excitation", &config.excitationVoltage, Unit::Voltage,
-			pmf_cast<void (*)(void*, Widget *w), Sweep, &Sweep::MinorSettingChanged>::cfn, this,
+			[&](void*, Widget *w) { this->MinorSettingChanged(w); }, this,
 			HardwareLimits::MinExcitationVoltage, HardwareLimits::MaxExcitationVoltage);
 	auto mBias = new MenuValue<uint32_t>("Bias", &config.biasVoltage, Unit::Voltage,
-			pmf_cast<void (*)(void*, Widget *w), Sweep, &Sweep::MinorSettingChanged>::cfn, this,
+			[&](void*, Widget *w) { this->MinorSettingChanged(w); }, this,
 			HardwareLimits::MinBiasVoltage, HardwareLimits::MaxBiasVoltage);
 	mAcq->AddEntry(mAvg);
 	mAcq->AddEntry(mExc);

@@ -17,7 +17,7 @@ extern SPI_HandleTypeDef hspi3;
 
 #define Log_Frontend (LevelDebug|LevelInfo|LevelWarn|LevelError|LevelCrit)
 
-static constexpr uint32_t referenceVoltage = 1100000;
+static constexpr uint32_t referenceVoltage = 1110000;
 static Frontend::Callback callback;
 static void *cb_ctx;
 static ProgressBar *AcquisitionProgress = nullptr;
@@ -585,7 +585,7 @@ static void frontend_task(void*) {
 						}
 					} else if (state == State::Calibrating) {
 						// Store in appropriate calibration slot (calibration resistor is 1k5)
-						float magCal = 1500.0f / mag;
+						float magCal = 1000.0f / mag;
 						LOG(Log_Frontend, LevelInfo,
 								"Calibration at gain %lu, frequency %luHz is: %f@%f",
 								ad5940_HSTIA_gain_to_value(rtia),

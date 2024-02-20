@@ -1,3 +1,5 @@
+#include <string.h>
+#include <stdlib.h>
 #include "display.h"
 #include "main.h"
 #include "log.h"
@@ -26,7 +28,7 @@ typedef struct  {
 
 static activeArea_t active;
 
-inline void setData(uint16_t data) {
+static inline void setData(uint16_t data) {
 	uint32_t buf = data;
 //	asm("rev %0, %0\n\t"
 //		"rbit %0, %0"
@@ -35,7 +37,7 @@ inline void setData(uint16_t data) {
 	GPIOE->ODR = buf;
 }
 
-inline void selectRegister(uint8_t reg) {
+static inline void selectRegister(uint8_t reg) {
 	RS_LOW();
 	setData(reg);
 	WR_LOW();
@@ -49,7 +51,7 @@ inline void selectRegister(uint8_t reg) {
 	WR_HIGH();
 }
 
-inline void writeData(uint16_t data) {
+static inline void writeData(uint16_t data) {
 	RS_HIGH();
 	setData(data);
 	WR_LOW();
@@ -109,15 +111,15 @@ uint16_t readRegister(uint8_t reg) {
 	return readData();
 }
 
-inline void setYStartStop(uint16_t start, uint16_t stop) {
+static inline void setYStartStop(uint16_t start, uint16_t stop) {
 	writeRegister(0x44, (stop << 8) + start);
 }
 
-inline void setXStart(uint16_t start) {
+static inline void setXStart(uint16_t start) {
 	writeRegister(0x45, start);
 }
 
-inline void setXStop(uint16_t stop) {
+static inline void setXStop(uint16_t stop) {
 	writeRegister(0x46, stop);
 }
 

@@ -41,9 +41,15 @@ using TouchCal = struct {
 	float scaleY;
 };
 
+#define SSD1289_XPT2046     1
+
+#if SSD1289_XPT2046
+static constexpr TouchCal DefaultCal = { .offsetX = -16, .offsetY = -24, .scaleX = 0.0892f, .scaleY = 0.0689f };
+#else
 static constexpr TouchCal DefaultCal = { .offsetX = 0, .offsetY = 0, .scaleX =
 		(float) TOUCH_RESOLUTION_X / 4096, .scaleY = (float) TOUCH_RESOLUTION_Y
 		/ 4096 };
+#endif
 
 static TouchCal Cal;
 
@@ -140,7 +146,11 @@ int8_t touch_GetCoordinates(coords_t *c) {
 	int8_t ret = getRaw(c);
 	/* convert to screen resolution */
 	c->x = constrain_int16_t(c->x * Cal.scaleX + Cal.offsetX, 0, DISPLAY_WIDTH - 1);
+#if SSD1289_XPT2046
+	c->y = constrain_int16_t(DISPLAY_HEIGHT - 1 - c->y * Cal.scaleY - Cal.offsetY, 0, DISPLAY_HEIGHT - 1);
+#else
 	c->y = constrain_int16_t(c->y * Cal.scaleY + Cal.offsetY, 0, DISPLAY_HEIGHT - 1);
+#endif
 	return ret;
 }
 
@@ -228,10 +238,18 @@ void touch_Calibrate() {
 	coords_t Meas2 = GetCalibrationPoint(true, Set2);
 
 	Cal.scaleX = (float) (Set2.x - Set1.x) / (Meas2.x - Meas1.x);
+#if SSD1289_XPT2046
+	Cal.scaleY = (float) (Set2.y - Set1.y) / (Meas1.y - Meas2.y);
+#else
 	Cal.scaleY = (float) (Set2.y - Set1.y) / (Meas2.y - Meas1.y);
+#endif
 	/* calculate offset */
 	Cal.offsetX = Set1.x - Meas1.x * Cal.scaleX;
+#if SSD1289_XPT2046
+	Cal.offsetY = Set1.y - ((4096 - Meas1.y) * Cal.scaleY);
+#else
 	Cal.offsetY = Set1.y - Meas1.y * Cal.scaleY;
+#endif
 
 	GUIEvent_t ev;
 	ev.type = EVENT_WINDOW_CLOSE;
