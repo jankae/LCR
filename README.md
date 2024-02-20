@@ -1,6 +1,6 @@
 # LCR Meter
 
-![Inductance Measurement](pictures/Inductor.jpg)
+![Inductance Measurement](pictures/original/Inductor.jpg)
 
 ### Key specifications
 * Measurement frequency: 100Hz-200kHz
@@ -17,4 +17,11 @@
   * ESR
   * Quality factor
 ##### Example of a sweep, showing the self-resonant frequency of a capacitor at approximately 5.5kHz
-![Inductance Measurement](pictures/Cap.jpg)
+![Inductance Measurement](pictures/original/Cap.jpg)
+
+#### Modified version:
+* Two possible toolchains: System Workbench for STM32 or IAR
+* Slightly modified PCB
+* Laser-cut acrylic case
+##### Resistance measurement 1 kOhm +- 0.1%
+![Resistance measurement](pictures/modified/precision_resistor_1k.jpg)
